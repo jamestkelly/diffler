@@ -141,3 +141,23 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Diffler output
+.diffler/
+quiz-output/
+*.quiz.html
+*.quiz.json
+
+# Google OAuth credentials and local tokens
+credentials.json
+client_secret*.json
+token.json
+
+# Local agent settings
+.claude/settings.local.json
+
+# Editors and operating systems
+.idea/
+.DS_Store
+*.swp
+*.swo
