@@ -144,6 +144,7 @@ describe("Feature: branch diff context", () => {
       ["private/notes.md", "excluded"],
     ]);
     expect(context.summary.totalFiles).toBe(5);
+    expect(context.limits.excludePaths).toEqual(["private"]);
   });
 
   it("Scenario: a file is renamed out of an excluded path", () => {
@@ -176,6 +177,103 @@ describe("Feature: branch diff context", () => {
         reason: "excluded",
       },
     ]);
+  });
+
+  it("Scenario: common credential files are omitted by default", () => {
+    // Given
+    const repository = createRepository();
+    write(repository, "source.ts", "export const baseline = true;\n");
+    commit(repository, "baseline");
+    git(repository, "switch", "-c", "feature");
+    write(repository, "source.ts", "export const baseline = false;\n");
+    write(repository, ".env.production", "API_TOKEN=secret\n");
+    write(repository, "credentials/service.json", '{"private_key":"secret"}\n');
+    write(repository, "client_secret_local.json", '{"secret":true}\n');
+    write(repository, "signing.key", "secret\n");
+    commit(repository, "mixed source and credentials");
+
+    // When
+    const context = collectDiffContext({ cwd: repository, baseRef: "main" });
+
+    // Then
+    expect(context.files.map((file) => file.path)).toEqual(["source.ts"]);
+    expect(context.omissions).toEqual([
+      {
+        path: ".env.production",
+        status: "added",
+        reason: "sensitive",
+      },
+      {
+        path: "client_secret_local.json",
+        status: "added",
+        reason: "sensitive",
+      },
+      {
+        path: "credentials/service.json",
+        status: "added",
+        reason: "sensitive",
+      },
+      { path: "signing.key", status: "added", reason: "sensitive" },
+    ]);
+  });
+
+  it("Scenario: a credential is added to an ordinary source file", () => {
+    // Given
+    const repository = createRepository();
+    write(repository, "config.ts", "export const enabled = false;\n");
+    commit(repository, "baseline");
+    git(repository, "switch", "-c", "feature");
+    write(
+      repository,
+      "config.ts",
+      'export const access_token = "ya29.this-is-a-sensitive-access-token";\n',
+    );
+    commit(repository, "accidental credential");
+
+    // When
+    const context = collectDiffContext({ cwd: repository, baseRef: "main" });
+
+    // Then
+    expect(context.files).toEqual([]);
+    expect(context.omissions).toEqual([
+      { path: "config.ts", status: "modified", reason: "sensitive" },
+    ]);
+  });
+
+  it("Scenario: a credential is removed from an ordinary source file", () => {
+    // Given
+    const repository = createRepository();
+    write(repository, "config.txt", "API_TOKEN=removed-sensitive-token\n");
+    commit(repository, "baseline credential");
+    git(repository, "switch", "-c", "feature");
+    write(repository, "config.txt", "credential removed\n");
+    commit(repository, "remove credential");
+
+    // When
+    const context = collectDiffContext({ cwd: repository, baseRef: "main" });
+
+    // Then
+    expect(context.files).toEqual([]);
+    expect(context.omissions).toEqual([
+      { path: "config.txt", status: "modified", reason: "sensitive" },
+    ]);
+  });
+
+  it("Scenario: a credential path uses uppercase characters", () => {
+    // Given
+    const repository = createRepository();
+    write(repository, "source.ts", "export const baseline = true;\n");
+    commit(repository, "baseline");
+    git(repository, "switch", "-c", "feature");
+    write(repository, "Credentials/SIGNING.PEM", "not model context\n");
+    commit(repository, "credential file");
+
+    // When
+    const context = collectDiffContext({ cwd: repository, baseRef: "main" });
+
+    // Then
+    expect(context.files).toEqual([]);
+    expect(context.omissions[0]?.reason).toBe("sensitive");
   });
 
   it("Scenario: a literal filename contains Git pathspec metacharacters", () => {

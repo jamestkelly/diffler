@@ -11,8 +11,8 @@ to Google Forms.
 
 Diffler is in early development. The repository contains the TypeScript project
 foundation, versioned quiz-document contract, local branch-context collection,
-and Google Forms authentication and publication. Skill packaging is tracked in
-the [MVP milestone](https://github.com/jamestkelly/diffler/milestone/1).
+Google Forms authentication and publication, and a portable Claude Code and
+OpenCode skill.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ Run the development CLI:
 ```sh
 pnpm start -- --help
 pnpm start -- context --base main
-pnpm start -- publish examples/quiz.json
+pnpm start -- publish .diffler/quiz.json --context .diffler/context.json
 ```
 
 To authorize Google Forms publication, follow the
@@ -43,6 +43,7 @@ To authorize Google Forms publication, follow the
 `diffler auth login --credentials <path>`.
 See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
 flow and manual verification steps.
+Install the agent workflow using the [skill installation guide](docs/skill-installation.md).
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
 CI runs the same command on pull requests and pushes to `main`.

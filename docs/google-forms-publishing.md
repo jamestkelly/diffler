@@ -7,10 +7,12 @@ publishing.
 ## Publish A Quiz
 
 ```sh
-diffler publish examples/quiz.json
+diffler publish .diffler/quiz.json --context .diffler/context.json
 ```
 
-Diffler validates the entire input before making an API request. It then:
+The context file must come from `diffler context` for the current `HEAD`.
+Diffler rejects stale metadata, omitted paths, and source ranges that do not
+intersect changed head-side lines before making an API request. It then:
 
 1. Creates an explicitly unpublished form.
 2. Atomically enables quiz mode and adds every graded question.
@@ -41,8 +43,9 @@ contain credentials or request details.
 
 ## Manual Verification
 
-After authenticating a test account, publish `examples/quiz.json`, open the
-printed responder URL in a private browser window, submit answers, and confirm:
+After authenticating a test account, collect context and create a quiz document
+for a fixture branch, then publish it with `--context`. Open the printed responder
+URL in a private browser window, submit answers, and confirm:
 
 - all four question types are present and required;
 - the form accepts the submission;

@@ -21,7 +21,10 @@ When `--base` is omitted, Diffler tries the local `origin/HEAD`, `main`, and
 | `--exclude <path>` | None | Excludes a repository-relative path prefix; repeatable. |
 
 Common lockfiles and files beneath `.diffler`, `build`, `coverage`, and `dist`
-are excluded by default. Binary files are not placed in model context.
+are excluded by default. Environment files, common credential/key paths, and
+patches matching common token or private-key signatures are marked `sensitive`
+and omitted before context is written. Binary files are not placed in model
+context.
 
 ## Output
 
@@ -34,7 +37,8 @@ The context document contains:
   without depending on local Git diff configuration.
 - `files`: textual changes with status, paths, patch size, and hunk-aware chunks.
 - `omissions`: binary, excluded, and over-budget files or chunks with reasons.
-- `limits`: configured and consumed byte limits.
+- `limits`: configured and consumed byte limits plus normalized explicit
+  exclusions, allowing validation to replay the same collection policy.
 - `summary`: changed-file and chunk counts. `includedFiles` includes partial files,
   `partiallyIncludedFiles` identifies that subset, and `omittedFiles` counts only
   fully omitted files.

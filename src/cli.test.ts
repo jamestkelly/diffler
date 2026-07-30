@@ -1,7 +1,13 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import type { AuthService } from "./auth.js";
 import { HELP_TEXT, run } from "./cli.js";
+import { collectDiffContext } from "./diff-context.js";
 import type { PublishedForm, QuizPublisher } from "./google-forms.js";
 import type { QuizDocument } from "./quiz.js";
 
@@ -105,20 +111,21 @@ describe("Feature: CLI invocation", () => {
     // Given
     const output: string[] = [];
     const publisher = new StubQuizPublisher();
+    const repository = contextBoundQuizRepository();
 
     // When
     const exitCode = await run(
-      ["publish", "examples/quiz.json"],
+      ["publish", "quiz.json", "--context", "context.json"],
       (message) => output.push(message),
       console.error,
-      new URL("..", import.meta.url).pathname,
+      repository,
       new StubAuthService(),
       publisher,
     );
 
     // Then
     expect(exitCode).toBe(0);
-    expect(publisher.document?.title).toBe("Diffler quiz document changes");
+    expect(publisher.document?.title).toBe("Context-bound quiz");
     expect(output).toEqual([
       "Published Google Form form-123",
       "Responder: https://docs.google.com/forms/d/e/responder/viewform",
@@ -130,13 +137,15 @@ describe("Feature: CLI invocation", () => {
     // Given
     const errors: string[] = [];
     const publisher = new StubQuizPublisher();
+    const repository = contextBoundQuizRepository();
+    writeFileSync(join(repository, "quiz.json"), "{}");
 
     // When
     const exitCode = await run(
-      ["publish", "package.json"],
+      ["publish", "quiz.json", "--context", "context.json"],
       console.log,
       (message) => errors.push(message),
-      new URL("..", import.meta.url).pathname,
+      repository,
       new StubAuthService(),
       publisher,
     );
@@ -159,6 +168,54 @@ describe("Feature: CLI invocation", () => {
     // Then
     expect(exitCode).toBe(0);
     expect(output).toEqual([HELP_TEXT]);
+  });
+
+  it("Scenario: a user validates a quiz without publishing it", async () => {
+    // Given
+    const output: string[] = [];
+    const publisher = new StubQuizPublisher();
+
+    // When
+    const exitCode = await run(
+      ["validate", "examples/quiz.json"],
+      (message) => output.push(message),
+      console.error,
+      new URL("..", import.meta.url).pathname,
+      new StubAuthService(),
+      publisher,
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(output).toEqual(["Quiz document is valid: 4 questions"]);
+    expect(publisher.document).toBeNull();
+  });
+
+  it("Scenario: context becomes stale before publication", async () => {
+    // Given
+    const repository = contextBoundQuizRepository();
+    const publisher = new StubQuizPublisher();
+    writeFileSync(join(repository, "source.ts"), "export const value = 3;\n");
+    git(repository, "add", "source.ts");
+    git(repository, "commit", "-m", "later change");
+    const errors: string[] = [];
+
+    // When
+    const exitCode = await run(
+      ["publish", "quiz.json", "--context", "context.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      publisher,
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Diff context is stale; collect context again before validating or publishing",
+    ]);
+    expect(publisher.document).toBeNull();
   });
 });
 
@@ -193,4 +250,48 @@ class StubQuizPublisher implements QuizPublisher {
       editUrl: "https://docs.google.com/forms/d/form-123/edit",
     };
   }
+}
+
+function contextBoundQuizRepository(): string {
+  const repository = mkdtempSync(join(tmpdir(), "diffler-cli-context-"));
+  git(repository, "init", "--initial-branch=main");
+  git(repository, "config", "user.email", "diffler@example.com");
+  git(repository, "config", "user.name", "Diffler Tests");
+  writeFileSync(join(repository, "source.ts"), "export const value = 1;\n");
+  git(repository, "add", "source.ts");
+  git(repository, "commit", "-m", "baseline");
+  git(repository, "switch", "-c", "feature");
+  writeFileSync(join(repository, "source.ts"), "export const value = 2;\n");
+  git(repository, "add", "source.ts");
+  git(repository, "commit", "-m", "feature");
+  const context = collectDiffContext({ cwd: repository, baseRef: "main" });
+  writeFileSync(join(repository, "context.json"), JSON.stringify(context));
+  writeFileSync(
+    join(repository, "quiz.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      repository: context.repository,
+      baseRef: context.comparison.baseRef,
+      headSha: context.comparison.headSha,
+      diffHash: context.diffHash,
+      title: "Context-bound quiz",
+      questions: [
+        {
+          type: "short_answer",
+          id: "changed-value",
+          prompt: "What is the changed value?",
+          required: true,
+          points: 1,
+          sources: [{ path: "source.ts", startLine: 1, endLine: 1 }],
+          correctAnswers: ["2"],
+          feedback: { general: "The feature changed the exported value." },
+        },
+      ],
+    }),
+  );
+  return repository;
+}
+
+function git(cwd: string, ...args: string[]): void {
+  execFileSync("git", args, { cwd, stdio: "ignore" });
 }
