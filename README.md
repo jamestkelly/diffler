@@ -37,6 +37,10 @@ pnpm start -- --help
 pnpm start -- context --base main
 ```
 
+To authorize Google Forms publication, follow the
+[Google authentication setup](docs/google-auth.md), then run
+`diffler auth login --credentials <path>`.
+
 The aggregate `check` command verifies formatting, linting, types, and tests.
 CI runs the same command on pull requests and pushes to `main`.
 

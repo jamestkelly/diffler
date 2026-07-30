@@ -13,6 +13,7 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { type AuthService, GoogleAuthService } from "./auth.js";
 import { collectDiffContext, DiffContextError } from "./diff-context.js";
 
 export const HELP_TEXT = `Diffler
@@ -21,6 +22,9 @@ Generate comprehension quizzes from Git branch diffs.
 
 Usage:
   diffler --help
+  diffler auth login --credentials <path>
+  diffler auth status
+  diffler auth logout
   diffler context [--base <ref>] [--output <path>]
                   [--max-bytes <bytes>] [--chunk-bytes <bytes>]
                   [--exclude <path>]...
@@ -28,12 +32,13 @@ Usage:
 
 type WriteOutput = (message: string) => void;
 
-export function run(
+export async function run(
   args: readonly string[],
   write: WriteOutput = console.log,
   writeError: WriteOutput = console.error,
   cwd: string = process.cwd(),
-): number {
+  auth: AuthService = new GoogleAuthService(),
+): Promise<number> {
   if (
     args.length === 0 ||
     args[0] === "--help" ||
@@ -44,6 +49,10 @@ export function run(
   ) {
     write(HELP_TEXT);
     return 0;
+  }
+
+  if (args[0] === "auth") {
+    return runAuth(args.slice(1), auth, write, writeError, cwd);
   }
 
   if (args[0] !== "context") {
@@ -68,6 +77,59 @@ export function run(
     writePrivateFile(cwd, outputPath, `${JSON.stringify(context, null, 2)}\n`);
     write(`Wrote diff context to ${options.outputPath}`);
     return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    writeError(message);
+    return 1;
+  }
+}
+
+async function runAuth(
+  args: readonly string[],
+  auth: AuthService,
+  write: WriteOutput,
+  writeError: WriteOutput,
+  cwd: string,
+): Promise<number> {
+  try {
+    switch (args[0]) {
+      case "login": {
+        if (args.length !== 3 || args[1] !== "--credentials") {
+          throw new Error("Usage: diffler auth login --credentials <path>");
+        }
+        const credentialsPath = args[2];
+        if (credentialsPath === undefined) {
+          throw new Error("Usage: diffler auth login --credentials <path>");
+        }
+        await auth.login(resolve(cwd, credentialsPath));
+        write(
+          "Authenticated with Google; refresh credentials stored in the OS keychain",
+        );
+        return 0;
+      }
+      case "status":
+        if (args.length !== 1) {
+          throw new Error("Usage: diffler auth status");
+        }
+        if (await auth.status()) {
+          write("Authenticated with Google");
+          return 0;
+        }
+        writeError("Not authenticated with Google; run diffler auth login");
+        return 1;
+      case "logout":
+        if (args.length !== 1) {
+          throw new Error("Usage: diffler auth logout");
+        }
+        if (await auth.logout()) {
+          write("Removed Google authorization from the OS keychain");
+        } else {
+          write("No stored Google authorization found");
+        }
+        return 0;
+      default:
+        throw new Error(`Unknown auth command: ${args[0] ?? "(missing)"}`);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     writeError(message);
@@ -216,5 +278,5 @@ if (
   entrypoint !== undefined &&
   import.meta.url === pathToFileURL(entrypoint).href
 ) {
-  process.exitCode = run(process.argv.slice(2));
+  process.exitCode = await run(process.argv.slice(2));
 }
