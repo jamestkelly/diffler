@@ -117,6 +117,16 @@ export class GoogleAuthService implements AuthService {
     return true;
   }
 
+  async getClient(): Promise<OAuth2Client> {
+    const authorization = await this.loadAuthorization();
+    if (authorization === null) {
+      throw new AuthError(
+        "Not authenticated with Google; run diffler auth login",
+      );
+    }
+    return authorizedClient(authorization);
+  }
+
   async logout(): Promise<boolean> {
     if ((await this.store.get()) === null) {
       return false;

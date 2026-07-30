@@ -10,9 +10,9 @@ to Google Forms.
 ## Status
 
 Diffler is in early development. The repository contains the TypeScript project
-foundation, versioned quiz-document contract, and local branch-context
-collection. Google Forms publication and skill packaging are tracked in the
-[MVP milestone](https://github.com/jamestkelly/diffler/milestone/1).
+foundation, versioned quiz-document contract, local branch-context collection,
+and Google Forms authentication and publication. Skill packaging is tracked in
+the [MVP milestone](https://github.com/jamestkelly/diffler/milestone/1).
 
 ## Requirements
 
@@ -35,11 +35,14 @@ Run the development CLI:
 ```sh
 pnpm start -- --help
 pnpm start -- context --base main
+pnpm start -- publish examples/quiz.json
 ```
 
 To authorize Google Forms publication, follow the
 [Google authentication setup](docs/google-auth.md), then run
 `diffler auth login --credentials <path>`.
+See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
+flow and manual verification steps.
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
 CI runs the same command on pull requests and pushes to `main`.
