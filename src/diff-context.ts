@@ -35,6 +35,19 @@ const DEFAULT_EXCLUDED_FILES = new Set([
   "yarn.lock",
 ]);
 
+const SENSITIVE_FILE_EXTENSIONS = new Set([".key", ".p12", ".pem", ".pfx"]);
+const SENSITIVE_DIRECTORIES = new Set([".secrets", "credentials", "secrets"]);
+const SENSITIVE_CONTENT_PATTERNS = [
+  /-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----/,
+  /\b(?:gh[oprsu]|github_pat)_[A-Za-z0-9_]{20,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bya29\.[A-Za-z0-9_-]{20,}/,
+  /\b1\/\/[A-Za-z0-9_-]{20,}/,
+  /\b(?:glpat-|sk_live_|xox[baprs]-)[A-Za-z0-9_-]{16,}/,
+  /["']?(?:access_token|api[_-]?key|client_secret|password|refresh_token)["']?\s*[:=]\s*["'][^"'\s]{8,}["']/i,
+  /^[+-]?(?:[A-Z0-9_]*(?:API_KEY|PASSWORD|SECRET|TOKEN)[A-Z0-9_]*)\s*=\s*[^\s]{8,}\s*$/m,
+] as const;
+
 export type ChangeStatus =
   | "added"
   | "modified"
@@ -42,7 +55,7 @@ export type ChangeStatus =
   | "renamed"
   | "copied";
 
-export type DiffOmissionReason = "binary" | "excluded" | "budget";
+export type DiffOmissionReason = "binary" | "excluded" | "sensitive" | "budget";
 
 export interface DiffChunk {
   kind: "metadata" | "hunk";
@@ -91,6 +104,7 @@ export interface DiffContext {
     maxPatchBytes: number;
     maxChunkBytes: number;
     includedPatchBytes: number;
+    excludePaths: readonly string[];
   };
   summary: {
     totalFiles: number;
@@ -157,6 +171,10 @@ export function collectDiffContext(
   let includedPatchBytes = 0;
 
   for (const changedPath of changedPaths) {
+    if (isChangedPathSensitive(changedPath)) {
+      omissions.push({ ...changedPath, reason: "sensitive" });
+      continue;
+    }
     if (isChangedPathExcluded(changedPath, excludePaths)) {
       omissions.push({ ...changedPath, reason: "excluded" });
       continue;
@@ -168,6 +186,10 @@ export function collectDiffContext(
     }
 
     const patch = filePatch(root, mergeBaseSha, headSha, changedPath);
+    if (SENSITIVE_CONTENT_PATTERNS.some((pattern) => pattern.test(patch))) {
+      omissions.push({ ...changedPath, reason: "sensitive" });
+      continue;
+    }
     const includedChunks: DiffChunk[] = [];
     let patchBytes = 0;
     let omittedChunkCount = 0;
@@ -222,6 +244,7 @@ export function collectDiffContext(
       maxPatchBytes,
       maxChunkBytes,
       includedPatchBytes,
+      excludePaths,
     },
     summary: {
       totalFiles: changedPaths.length,
@@ -383,6 +406,26 @@ function isExcluded(path: string, excludePaths: readonly string[]): boolean {
   );
 }
 
+function isSensitive(path: string): boolean {
+  const segments = path.toLowerCase().split("/");
+  if (segments.some((segment) => SENSITIVE_DIRECTORIES.has(segment))) {
+    return true;
+  }
+  const filename = segments.at(-1) ?? "";
+  return (
+    filename === ".env" ||
+    filename.startsWith(".env.") ||
+    filename === ".npmrc" ||
+    filename === "credentials.json" ||
+    filename === "service-account.json" ||
+    filename === "token.json" ||
+    ((filename.startsWith("client_secret_") ||
+      filename === "client_secret.json") &&
+      filename.endsWith(".json")) ||
+    SENSITIVE_FILE_EXTENSIONS.has(filename.slice(filename.lastIndexOf(".")))
+  );
+}
+
 function isChangedPathExcluded(
   changedPath: ChangedPath,
   excludePaths: readonly string[],
@@ -391,6 +434,14 @@ function isChangedPathExcluded(
     isExcluded(changedPath.path, excludePaths) ||
     (changedPath.previousPath !== undefined &&
       isExcluded(changedPath.previousPath, excludePaths))
+  );
+}
+
+function isChangedPathSensitive(changedPath: ChangedPath): boolean {
+  return (
+    isSensitive(changedPath.path) ||
+    (changedPath.previousPath !== undefined &&
+      isSensitive(changedPath.previousPath))
   );
 }
 

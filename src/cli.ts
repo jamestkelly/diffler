@@ -17,6 +17,10 @@ import { pathToFileURL } from "node:url";
 import { type AuthService, GoogleAuthService } from "./auth.js";
 import { collectDiffContext, DiffContextError } from "./diff-context.js";
 import { publishWithStoredAuth, type QuizPublisher } from "./google-forms.js";
+import {
+  parseQuizContext,
+  validateQuizAgainstContext,
+} from "./quiz-context.js";
 import { parseQuizDocument } from "./quiz.js";
 
 export const HELP_TEXT = `Diffler
@@ -28,7 +32,8 @@ Usage:
   diffler auth login --credentials <path>
   diffler auth status
   diffler auth logout
-  diffler publish <quiz.json>
+  diffler validate <quiz.json> [--context <context.json>]
+  diffler publish <quiz.json> --context <context.json>
   diffler context [--base <ref>] [--output <path>]
                   [--max-bytes <bytes>] [--chunk-bytes <bytes>]
                   [--exclude <path>]...
@@ -53,6 +58,9 @@ export async function run(
       (args[1] === "--help" || args[1] === "-h")) ||
     (args[0] === "publish" &&
       args.length === 2 &&
+      (args[1] === "--help" || args[1] === "-h")) ||
+    (args[0] === "validate" &&
+      args.length === 2 &&
       (args[1] === "--help" || args[1] === "-h"))
   ) {
     write(HELP_TEXT);
@@ -65,6 +73,10 @@ export async function run(
 
   if (args[0] === "publish") {
     return runPublish(args.slice(1), publisher, write, writeError, cwd);
+  }
+
+  if (args[0] === "validate") {
+    return runValidate(args.slice(1), write, writeError, cwd);
   }
 
   if (args[0] !== "context") {
@@ -104,28 +116,9 @@ async function runPublish(
   cwd: string,
 ): Promise<number> {
   try {
-    if (args.length !== 1) {
-      throw new Error("Usage: diffler publish <quiz.json>");
-    }
-    const inputPath = args[0];
-    if (inputPath === undefined) {
-      throw new Error("Usage: diffler publish <quiz.json>");
-    }
-    const resolvedPath = resolve(cwd, inputPath);
-    let input: string;
-    try {
-      input = readFileSync(resolvedPath, "utf8");
-    } catch {
-      throw new Error(`Unable to read quiz document: ${inputPath}`);
-    }
-    let untrustedDocument: unknown;
-    try {
-      untrustedDocument = JSON.parse(input);
-    } catch {
-      throw new Error(`Quiz document is not valid JSON: ${inputPath}`);
-    }
+    const options = parseQuizFileArgs(args, "publish");
     const result = await publisher.publish(
-      parseQuizDocument(untrustedDocument),
+      readQuizDocument(cwd, options.inputPath, options.contextPath),
     );
     write(`Published Google Form ${result.formId}`);
     write(`Responder: ${result.responderUrl}`);
@@ -135,6 +128,98 @@ async function runPublish(
     const message = error instanceof Error ? error.message : "Unknown error";
     writeError(message);
     return 1;
+  }
+}
+
+function runValidate(
+  args: readonly string[],
+  write: WriteOutput,
+  writeError: WriteOutput,
+  cwd: string,
+): number {
+  try {
+    const options = parseQuizFileArgs(args, "validate");
+    const document = readQuizDocument(
+      cwd,
+      options.inputPath,
+      options.contextPath,
+    );
+    write(`Quiz document is valid: ${document.questions.length} questions`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    writeError(message);
+    return 1;
+  }
+}
+
+interface QuizFileOptions {
+  inputPath: string;
+  contextPath?: string;
+}
+
+function parseQuizFileArgs(
+  args: readonly string[],
+  command: "publish" | "validate",
+): QuizFileOptions {
+  const usage =
+    command === "publish"
+      ? "Usage: diffler publish <quiz.json> --context <context.json>"
+      : "Usage: diffler validate <quiz.json> [--context <context.json>]";
+  const inputPath = args[0];
+  if (inputPath === undefined) {
+    throw new Error(usage);
+  }
+  if (args.length === 1) {
+    if (command === "publish") {
+      throw new Error(usage);
+    }
+    return { inputPath };
+  }
+  if (args.length === 3 && args[1] === "--context" && args[2] !== undefined) {
+    return { inputPath, contextPath: args[2] };
+  }
+  throw new Error(usage);
+}
+
+function readQuizDocument(
+  cwd: string,
+  inputPath: string,
+  contextPath?: string,
+) {
+  const document = parseQuizDocument(readJsonFile(cwd, inputPath, "quiz"));
+  if (contextPath !== undefined) {
+    const context = parseQuizContext(readJsonFile(cwd, contextPath, "context"));
+    const current = parseQuizContext(
+      collectDiffContext({
+        cwd,
+        baseRef: context.comparison.baseRef,
+        maxPatchBytes: context.limits.maxPatchBytes,
+        maxChunkBytes: context.limits.maxChunkBytes,
+        excludePaths: context.limits.excludePaths,
+      }),
+    );
+    validateQuizAgainstContext(document, context, current);
+  }
+  return document;
+}
+
+function readJsonFile(
+  cwd: string,
+  inputPath: string,
+  kind: "context" | "quiz",
+): unknown {
+  let input: string;
+  try {
+    input = readFileSync(resolve(cwd, inputPath), "utf8");
+  } catch {
+    throw new Error(`Unable to read ${kind} document: ${inputPath}`);
+  }
+  try {
+    return JSON.parse(input);
+  } catch {
+    const label = kind === "quiz" ? "Quiz" : "Context";
+    throw new Error(`${label} document is not valid JSON: ${inputPath}`);
   }
 }
 
