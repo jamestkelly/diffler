@@ -123,6 +123,22 @@ describe("Feature: persisted Google authorization", () => {
     expect(oauth.validatedWith).toBeNull();
   });
 
+  it("Scenario: a Google API client is requested before login", async () => {
+    // Given
+    const auth = new GoogleAuthService(
+      new MemoryAuthorizationStore(),
+      new StubOAuthFlow(),
+    );
+
+    // When
+    const getClient = () => auth.getClient();
+
+    // Then
+    await expect(getClient).rejects.toThrowError(
+      "Not authenticated with Google; run diffler auth login",
+    );
+  });
+
   it("Scenario: a user logs out", async () => {
     // Given
     const store = new MemoryAuthorizationStore("stored-authorization");

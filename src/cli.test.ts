@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthService } from "./auth.js";
 import { HELP_TEXT, run } from "./cli.js";
+import type { PublishedForm, QuizPublisher } from "./google-forms.js";
+import type { QuizDocument } from "./quiz.js";
 
 describe("Feature: CLI invocation", () => {
   it("Scenario: a user invokes Diffler without arguments", async () => {
@@ -98,6 +100,66 @@ describe("Feature: CLI invocation", () => {
       "Removed Google authorization from the OS keychain",
     ]);
   });
+
+  it("Scenario: a user publishes a validated quiz document", async () => {
+    // Given
+    const output: string[] = [];
+    const publisher = new StubQuizPublisher();
+
+    // When
+    const exitCode = await run(
+      ["publish", "examples/quiz.json"],
+      (message) => output.push(message),
+      console.error,
+      new URL("..", import.meta.url).pathname,
+      new StubAuthService(),
+      publisher,
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(publisher.document?.title).toBe("Diffler quiz document changes");
+    expect(output).toEqual([
+      "Published Google Form form-123",
+      "Responder: https://docs.google.com/forms/d/e/responder/viewform",
+      "Editor: https://docs.google.com/forms/d/form-123/edit",
+    ]);
+  });
+
+  it("Scenario: an invalid quiz is rejected before publication", async () => {
+    // Given
+    const errors: string[] = [];
+    const publisher = new StubQuizPublisher();
+
+    // When
+    const exitCode = await run(
+      ["publish", "package.json"],
+      console.log,
+      (message) => errors.push(message),
+      new URL("..", import.meta.url).pathname,
+      new StubAuthService(),
+      publisher,
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors[0]).toContain("Invalid quiz document");
+    expect(publisher.document).toBeNull();
+  });
+
+  it("Scenario: a user asks for publish help", async () => {
+    // Given
+    const output: string[] = [];
+
+    // When
+    const exitCode = await run(["publish", "--help"], (message) =>
+      output.push(message),
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(output).toEqual([HELP_TEXT]);
+  });
 });
 
 class StubAuthService implements AuthService {
@@ -117,5 +179,18 @@ class StubAuthService implements AuthService {
     const removed = this.authenticated;
     this.authenticated = false;
     return removed;
+  }
+}
+
+class StubQuizPublisher implements QuizPublisher {
+  document: QuizDocument | null = null;
+
+  async publish(document: QuizDocument): Promise<PublishedForm> {
+    this.document = document;
+    return {
+      formId: "form-123",
+      responderUrl: "https://docs.google.com/forms/d/e/responder/viewform",
+      editUrl: "https://docs.google.com/forms/d/form-123/edit",
+    };
   }
 }

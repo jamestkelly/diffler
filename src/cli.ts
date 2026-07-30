@@ -7,6 +7,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readFileSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -15,6 +16,8 @@ import { pathToFileURL } from "node:url";
 
 import { type AuthService, GoogleAuthService } from "./auth.js";
 import { collectDiffContext, DiffContextError } from "./diff-context.js";
+import { publishWithStoredAuth, type QuizPublisher } from "./google-forms.js";
+import { parseQuizDocument } from "./quiz.js";
 
 export const HELP_TEXT = `Diffler
 
@@ -25,6 +28,7 @@ Usage:
   diffler auth login --credentials <path>
   diffler auth status
   diffler auth logout
+  diffler publish <quiz.json>
   diffler context [--base <ref>] [--output <path>]
                   [--max-bytes <bytes>] [--chunk-bytes <bytes>]
                   [--exclude <path>]...
@@ -38,12 +42,16 @@ export async function run(
   writeError: WriteOutput = console.error,
   cwd: string = process.cwd(),
   auth: AuthService = new GoogleAuthService(),
+  publisher: QuizPublisher = { publish: publishWithStoredAuth },
 ): Promise<number> {
   if (
     args.length === 0 ||
     args[0] === "--help" ||
     args[0] === "-h" ||
     (args[0] === "context" &&
+      args.length === 2 &&
+      (args[1] === "--help" || args[1] === "-h")) ||
+    (args[0] === "publish" &&
       args.length === 2 &&
       (args[1] === "--help" || args[1] === "-h"))
   ) {
@@ -53,6 +61,10 @@ export async function run(
 
   if (args[0] === "auth") {
     return runAuth(args.slice(1), auth, write, writeError, cwd);
+  }
+
+  if (args[0] === "publish") {
+    return runPublish(args.slice(1), publisher, write, writeError, cwd);
   }
 
   if (args[0] !== "context") {
@@ -76,6 +88,48 @@ export async function run(
     const outputPath = resolve(cwd, options.outputPath);
     writePrivateFile(cwd, outputPath, `${JSON.stringify(context, null, 2)}\n`);
     write(`Wrote diff context to ${options.outputPath}`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    writeError(message);
+    return 1;
+  }
+}
+
+async function runPublish(
+  args: readonly string[],
+  publisher: QuizPublisher,
+  write: WriteOutput,
+  writeError: WriteOutput,
+  cwd: string,
+): Promise<number> {
+  try {
+    if (args.length !== 1) {
+      throw new Error("Usage: diffler publish <quiz.json>");
+    }
+    const inputPath = args[0];
+    if (inputPath === undefined) {
+      throw new Error("Usage: diffler publish <quiz.json>");
+    }
+    const resolvedPath = resolve(cwd, inputPath);
+    let input: string;
+    try {
+      input = readFileSync(resolvedPath, "utf8");
+    } catch {
+      throw new Error(`Unable to read quiz document: ${inputPath}`);
+    }
+    let untrustedDocument: unknown;
+    try {
+      untrustedDocument = JSON.parse(input);
+    } catch {
+      throw new Error(`Quiz document is not valid JSON: ${inputPath}`);
+    }
+    const result = await publisher.publish(
+      parseQuizDocument(untrustedDocument),
+    );
+    write(`Published Google Form ${result.formId}`);
+    write(`Responder: ${result.responderUrl}`);
+    write(`Editor: ${result.editUrl}`);
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
