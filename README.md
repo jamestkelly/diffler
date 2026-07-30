@@ -10,14 +10,15 @@ to Google Forms.
 ## Status
 
 Diffler is in early development. The repository contains the TypeScript project
-foundation and the versioned quiz-document contract. Diff collection, Google
-Forms publication, and skill packaging are tracked in the
+foundation, versioned quiz-document contract, and local branch-context
+collection. Google Forms publication and skill packaging are tracked in the
 [MVP milestone](https://github.com/jamestkelly/diffler/milestone/1).
 
 ## Requirements
 
 - Node.js 22 or newer
 - pnpm 10.33.4
+- Git 2.42 or newer
 
 ## Development
 
@@ -33,6 +34,7 @@ Run the development CLI:
 
 ```sh
 pnpm start -- --help
+pnpm start -- context --base main
 ```
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
@@ -50,6 +52,7 @@ CI runs the same command on pull requests and pushes to `main`.
 
 ```text
 src/                 TypeScript CLI and domain implementation
+docs/                Context and quiz contracts
 skills/diffler/      Claude Code and OpenCode skill (planned)
 .github/workflows/   Continuous integration
 ```

@@ -18,12 +18,18 @@ describe("Feature: CLI invocation", () => {
   it("Scenario: a user supplies an unknown argument", () => {
     // Given
     const output: string[] = [];
+    const errors: string[] = [];
 
     // When
-    const exitCode = run(["--unknown"], (message) => output.push(message));
+    const exitCode = run(
+      ["--unknown"],
+      (message) => output.push(message),
+      (message) => errors.push(message),
+    );
 
     // Then
     expect(exitCode).toBe(1);
-    expect(output).toEqual(["Unknown argument: --unknown"]);
+    expect(output).toEqual([]);
+    expect(errors).toEqual(["Unknown command: --unknown"]);
   });
 });
