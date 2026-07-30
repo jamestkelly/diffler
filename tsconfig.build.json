@@ -8,5 +8,5 @@
     "declaration": true,
     "declarationMap": true
   },
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "scripts/**/*.ts"]
 }

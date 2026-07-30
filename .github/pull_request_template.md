@@ -24,8 +24,8 @@ Fixes #
 
 ## Verification
 
-- [ ] `npm run check`
-- [ ] `npm run build`
+- [ ] `pnpm check`
+- [ ] `pnpm build`
 - [ ] Manual integration testing, if external behavior changed
 
 If any check was not run, explain why:
@@ -41,4 +41,4 @@ work.
 - [ ] Tests cover new behavior or regressions.
 - [ ] Public CLI, schema, or skill changes are documented.
 - [ ] Credentials, tokens, answer keys, and sensitive diffs are not exposed.
-- [ ] `package-lock.json` is updated when dependencies changed.
+- [ ] `pnpm-lock.yaml` is updated when dependencies changed.

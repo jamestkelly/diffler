@@ -1,0 +1,75 @@
+{
+  "$schema": "../schemas/quiz-document.schema.json",
+  "schemaVersion": 1,
+  "repository": {
+    "name": "jamestkelly/diffler",
+    "remote": "https://github.com/jamestkelly/diffler.git"
+  },
+  "baseRef": "origin/main",
+  "headSha": "0123456789abcdef0123456789abcdef01234567",
+  "diffHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "title": "Diffler quiz document changes",
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "id": "schema-purpose",
+      "prompt": "Why does the quiz document include a schema version?",
+      "required": true,
+      "points": 2,
+      "sources": [{ "path": "src/quiz.ts", "startLine": 147, "endLine": 147 }],
+      "options": [
+        "To support explicit contract evolution",
+        "To identify the package-manager version",
+        "To count the generated questions"
+      ],
+      "correctAnswers": ["To support explicit contract evolution"],
+      "feedback": {
+        "whenRight": "Correct. The version identifies the document contract.",
+        "whenWrong": "Review the top-level quiz document fields."
+      }
+    },
+    {
+      "type": "checkbox",
+      "id": "graded-fields",
+      "prompt": "Which fields participate directly in automatic grading?",
+      "required": true,
+      "points": 2,
+      "sources": [
+        { "path": "src/quiz.ts", "startLine": 31, "endLine": 41 },
+        { "path": "src/quiz.ts", "startLine": 91, "endLine": 104 }
+      ],
+      "options": ["options", "correctAnswers", "baseRef", "points"],
+      "correctAnswers": ["options", "correctAnswers", "points"],
+      "feedback": {
+        "whenRight": "Correct. These fields define the choices, key, and score.",
+        "whenWrong": "The base ref identifies the diff but does not grade a response."
+      }
+    },
+    {
+      "type": "dropdown",
+      "id": "hash-algorithm",
+      "prompt": "Which algorithm is required for diffHash?",
+      "required": true,
+      "points": 1,
+      "sources": [{ "path": "src/quiz.ts", "startLine": 156, "endLine": 156 }],
+      "options": ["SHA-1", "SHA-256", "MD5"],
+      "correctAnswers": ["SHA-256"],
+      "feedback": {
+        "whenRight": "Correct. diffHash is a 64-character SHA-256 value.",
+        "whenWrong": "Review the diffHash validation pattern."
+      }
+    },
+    {
+      "type": "short_answer",
+      "id": "validation-boundary",
+      "prompt": "What type is accepted at the quiz parsing boundary?",
+      "required": true,
+      "points": 1,
+      "sources": [{ "path": "src/quiz.ts", "startLine": 220, "endLine": 220 }],
+      "correctAnswers": ["unknown"],
+      "feedback": {
+        "general": "Untrusted model or file data enters the parser as unknown."
+      }
+    }
+  ]
+}

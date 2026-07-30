@@ -9,30 +9,30 @@ to Google Forms.
 
 ## Status
 
-Diffler is in early development. The current repository contains only the
-TypeScript project foundation; diff collection, quiz validation, Google Forms
-publication, and skill packaging are tracked in the
+Diffler is in early development. The repository contains the TypeScript project
+foundation and the versioned quiz-document contract. Diff collection, Google
+Forms publication, and skill packaging are tracked in the
 [MVP milestone](https://github.com/jamestkelly/diffler/milestone/1).
 
 ## Requirements
 
 - Node.js 22 or newer
-- npm
+- pnpm 10.33.4
 
 ## Development
 
 Install dependencies and run all checks:
 
 ```sh
-npm ci
-npm run check
-npm run build
+pnpm install --frozen-lockfile
+pnpm check
+pnpm build
 ```
 
 Run the development CLI:
 
 ```sh
-npm start -- --help
+pnpm start -- --help
 ```
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
