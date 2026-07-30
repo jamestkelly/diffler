@@ -443,14 +443,14 @@ describe("Feature: branch diff context", () => {
 });
 
 describe("Feature: diff context CLI", () => {
-  it("Scenario: a user writes context to a chosen path", () => {
+  it("Scenario: a user writes context to a chosen path", async () => {
     // Given
     const repository = repositoryWithSingleChange();
     const output: string[] = [];
     const errors: string[] = [];
 
     // When
-    const exitCode = run(
+    const exitCode = await run(
       ["context", "--base", "main", "--output", "artifacts/context.json"],
       (message) => output.push(message),
       (message) => errors.push(message),
@@ -474,7 +474,7 @@ describe("Feature: diff context CLI", () => {
     ).toBe(0o600);
   });
 
-  it("Scenario: the output path is a symbolic link", () => {
+  it("Scenario: the output path is a symbolic link", async () => {
     // Given
     const repository = repositoryWithSingleChange();
     const output: string[] = [];
@@ -484,7 +484,7 @@ describe("Feature: diff context CLI", () => {
     symlinkSync("../victim.txt", join(repository, ".diffler/context.json"));
 
     // When
-    const exitCode = run(
+    const exitCode = await run(
       ["context", "--base", "main"],
       (message) => output.push(message),
       (message) => errors.push(message),
