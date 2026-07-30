@@ -1,0 +1,495 @@
+{
+  "$id": "https://raw.githubusercontent.com/jamestkelly/diffler/main/schemas/quiz-document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "repository": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "remote": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "baseRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "headSha": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "diffHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "questions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "multiple_choice"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "points": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483647
+              },
+              "sources": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "allOf": [
+                        {
+                          "pattern": "\\S"
+                        },
+                        {
+                          "pattern": "^(?!\\/|\\\\|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|[\\\\/])\\.{1,2}(?:[\\\\/]|$))(?!.*[\\\\/]$).+$"
+                        }
+                      ],
+                      "description": "Repository-relative file path"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["path", "startLine", "endLine"],
+                  "additionalProperties": false
+                }
+              },
+              "options": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              },
+              "feedback": {
+                "type": "object",
+                "properties": {
+                  "whenRight": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "whenWrong": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                },
+                "required": ["whenRight", "whenWrong"],
+                "additionalProperties": false
+              },
+              "correctAnswers": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "prompt",
+              "required",
+              "points",
+              "sources",
+              "options",
+              "feedback",
+              "correctAnswers"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "checkbox"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "points": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483647
+              },
+              "sources": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "allOf": [
+                        {
+                          "pattern": "\\S"
+                        },
+                        {
+                          "pattern": "^(?!\\/|\\\\|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|[\\\\/])\\.{1,2}(?:[\\\\/]|$))(?!.*[\\\\/]$).+$"
+                        }
+                      ],
+                      "description": "Repository-relative file path"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["path", "startLine", "endLine"],
+                  "additionalProperties": false
+                }
+              },
+              "options": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              },
+              "feedback": {
+                "type": "object",
+                "properties": {
+                  "whenRight": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "whenWrong": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                },
+                "required": ["whenRight", "whenWrong"],
+                "additionalProperties": false
+              },
+              "correctAnswers": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "prompt",
+              "required",
+              "points",
+              "sources",
+              "options",
+              "feedback",
+              "correctAnswers"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "dropdown"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "points": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483647
+              },
+              "sources": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "allOf": [
+                        {
+                          "pattern": "\\S"
+                        },
+                        {
+                          "pattern": "^(?!\\/|\\\\|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|[\\\\/])\\.{1,2}(?:[\\\\/]|$))(?!.*[\\\\/]$).+$"
+                        }
+                      ],
+                      "description": "Repository-relative file path"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["path", "startLine", "endLine"],
+                  "additionalProperties": false
+                }
+              },
+              "options": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              },
+              "feedback": {
+                "type": "object",
+                "properties": {
+                  "whenRight": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "whenWrong": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                },
+                "required": ["whenRight", "whenWrong"],
+                "additionalProperties": false
+              },
+              "correctAnswers": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "prompt",
+              "required",
+              "points",
+              "sources",
+              "options",
+              "feedback",
+              "correctAnswers"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "short_answer"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "points": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 2147483647
+              },
+              "sources": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "allOf": [
+                        {
+                          "pattern": "\\S"
+                        },
+                        {
+                          "pattern": "^(?!\\/|\\\\|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|[\\\\/])\\.{1,2}(?:[\\\\/]|$))(?!.*[\\\\/]$).+$"
+                        }
+                      ],
+                      "description": "Repository-relative file path"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["path", "startLine", "endLine"],
+                  "additionalProperties": false
+                }
+              },
+              "correctAnswers": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "uniqueItems": true
+              },
+              "feedback": {
+                "type": "object",
+                "properties": {
+                  "general": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  }
+                },
+                "required": ["general"],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "prompt",
+              "required",
+              "points",
+              "sources",
+              "correctAnswers",
+              "feedback"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "repository",
+    "baseRef",
+    "headSha",
+    "diffHash",
+    "title",
+    "questions"
+  ],
+  "additionalProperties": false,
+  "description": "A validated Diffler quiz document",
+  "x-diffler-runtime-validations": [
+    "Source endLine must be greater than or equal to startLine",
+    "Every correct answer for a choice question must match an option",
+    "Question IDs must be unique within the document"
+  ]
+}

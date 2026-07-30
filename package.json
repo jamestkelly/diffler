@@ -4,6 +4,7 @@
   "description": "Generate comprehension quizzes from Git branch diffs for Claude Code, OpenCode, and pull-request workflows.",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@10.33.4",
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -13,10 +14,11 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
+    "schema:write": "tsx scripts/write-quiz-schema.ts",
     "start": "tsx src/cli.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -27,5 +29,8 @@
     "tsx": "4.23.1",
     "typescript": "7.0.2",
     "vitest": "4.1.10"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   }
 }

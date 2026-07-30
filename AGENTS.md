@@ -71,3 +71,5 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 - Naming Casing: `PascalCase` for classes, interfaces, and type aliases (e.g., `QuizDocument`, `GoogleFormsClient`, `DiffContext`). `camelCase` for functions, variables, and properties. Acronyms are treated as words (e.g., `formId`, `oauthClient`).
 - Type Safety: Keep TypeScript strict. Do not use `any`, unchecked type assertions, or non-null assertions to bypass the type system. Parse untrusted file, process, model, and API data from `unknown` at the boundary.
 - Error Hygiene: Never throw strings or silently swallow errors. Throw `Error` instances with actionable context, preserve causes where useful, and handle expected failures explicitly.
+- Test Style: Prefer behavior-driven tests organized around observable features and scenarios. Make Given, When, and Then phases clear, and avoid coupling tests to implementation details.
+- Package Manager: Use pnpm for dependency and script operations. Commit `pnpm-lock.yaml` whenever dependencies change; do not generate npm or Yarn lockfiles.
