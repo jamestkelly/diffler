@@ -362,6 +362,39 @@ describe("Feature: branch diff context", () => {
     expect(context.summary.omittedFiles).toBe(0);
   });
 
+  it("Scenario: a file contains many isolated hunks", () => {
+    // Given
+    const repository = createRepository();
+    write(repository, "many-hunks.txt", `${numberedLines("before", 201)}\n`);
+    commit(repository, "baseline");
+    git(repository, "switch", "-c", "feature");
+    const lines = numberedLines("before", 201).split("\n");
+    for (let index = 0; index < lines.length; index += 8) {
+      lines[index] = `after line ${index}`;
+    }
+    write(repository, "many-hunks.txt", `${lines.join("\n")}\n`);
+    commit(repository, "many isolated changes");
+
+    // When
+    const context = collectDiffContext({
+      cwd: repository,
+      baseRef: "main",
+      maxChunkBytes: 10_000,
+    });
+
+    // Then
+    const hunks = context.files[0]?.chunks.filter(
+      (chunk) => chunk.kind === "hunk",
+    );
+    expect(hunks).toHaveLength(26);
+    expect(hunks?.map((chunk) => chunk.section)).toEqual(
+      Array.from({ length: 26 }, (_, index) => index + 1),
+    );
+    expect(hunks?.map((chunk) => chunk.text).join("")).toContain(
+      "after line 200",
+    );
+  });
+
   it("Scenario: a user selects a small chunk ceiling for Unicode changes", () => {
     // Given
     const repository = createRepository();
