@@ -19,7 +19,7 @@ const metadata = {
   title: "Example quiz",
 };
 
-function documentWithQuestion(question: unknown): unknown {
+function documentWithQuestion(question: unknown): Record<string, unknown> {
   return { ...metadata, questions: [question] };
 }
 
@@ -55,6 +55,22 @@ describe("Feature: quiz document validation", () => {
       "dropdown",
       "short_answer",
     ]);
+  });
+
+  it("Scenario: an agent supplies an optional closing riddle", () => {
+    // Given
+    const input = {
+      ...documentWithQuestion(multipleChoice()),
+      closingRiddle: "What ref dances through a branch without moving?",
+    };
+
+    // When
+    const document = parseQuizDocument(input);
+
+    // Then
+    expect(document.closingRiddle).toBe(
+      "What ref dances through a branch without moving?",
+    );
   });
 
   it("Scenario: an agent supplies an unsupported question type", () => {

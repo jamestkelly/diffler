@@ -101,6 +101,14 @@ export class GoogleFormsPublisher implements QuizPublisher {
             ...document.questions.map((question, index) =>
               createItemRequest(question, index),
             ),
+            ...(document.closingRiddle === undefined
+              ? []
+              : [
+                  createRiddleItemRequest(
+                    document.closingRiddle,
+                    document.questions.length,
+                  ),
+                ]),
           ],
         },
       });
@@ -153,6 +161,23 @@ function createItemRequest(question: QuizQuestion, index: number): unknown {
             required: question.required,
             grading: grading(question),
             ...questionKind(question),
+          },
+        },
+      },
+      location: { index },
+    },
+  };
+}
+
+function createRiddleItemRequest(riddle: string, index: number): unknown {
+  return {
+    createItem: {
+      item: {
+        title: riddle,
+        questionItem: {
+          question: {
+            required: false,
+            textQuestion: { paragraph: false },
           },
         },
       },

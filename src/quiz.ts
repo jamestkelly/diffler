@@ -156,6 +156,7 @@ export const quizDocumentSchema = z
     diffHash: z.string().regex(/^[0-9a-f]{64}$/, "Must be a SHA-256 hash"),
     title: meaningfulString,
     questions: z.array(questionSchema).min(1),
+    closingRiddle: meaningfulString.optional(),
   })
   .superRefine((document, context) => {
     const questionIds = new Set<string>();
