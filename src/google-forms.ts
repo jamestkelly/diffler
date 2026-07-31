@@ -5,6 +5,12 @@ import { GoogleAuthService } from "./auth.js";
 import type { QuizDocument, QuizQuestion } from "./quiz.js";
 
 const FORMS_API = "https://forms.googleapis.com/v1/forms";
+const RIDDLES_API = "https://riddles-api-eight.vercel.app";
+const RIDDLE_CATEGORIES = ["funny", "logic", "math", "mystery", "science"];
+
+const riddleSchema = z.object({
+  riddle: z.string().trim().min(1).max(1_000),
+});
 
 const createdFormIdentitySchema = z.object({
   formId: z.string().min(1),
@@ -35,6 +41,10 @@ export interface QuizPublisher {
   publish(document: QuizDocument): Promise<PublishedForm>;
 }
 
+export interface RiddleProvider {
+  getRiddle(): Promise<string | undefined>;
+}
+
 export class FormsPublishError extends Error {
   override readonly name = "FormsPublishError";
 
@@ -48,10 +58,15 @@ export class FormsPublishError extends Error {
 }
 
 export class GoogleFormsPublisher implements QuizPublisher {
-  constructor(private readonly transport: FormsTransport) {}
+  constructor(
+    private readonly transport: FormsTransport,
+    private readonly riddleProvider: RiddleProvider = new RiddlesApiProvider(),
+  ) {}
 
   async publish(document: QuizDocument): Promise<PublishedForm> {
     let response: unknown;
+    const riddle = await this.riddle();
+
     try {
       response = await this.transport.request({
         method: "POST",
@@ -101,6 +116,9 @@ export class GoogleFormsPublisher implements QuizPublisher {
             ...document.questions.map((question, index) =>
               createItemRequest(question, index),
             ),
+            ...(riddle === undefined
+              ? []
+              : [createRiddleRequest(riddle, document.questions.length)]),
           ],
         },
       });
@@ -132,6 +150,14 @@ export class GoogleFormsPublisher implements QuizPublisher {
       responderUrl: created.data.responderUri,
     };
   }
+
+  private async riddle(): Promise<string | undefined> {
+    try {
+      return await this.riddleProvider.getRiddle();
+    } catch {
+      return undefined;
+    }
+  }
 }
 
 export async function publishWithStoredAuth(
@@ -153,6 +179,23 @@ function createItemRequest(question: QuizQuestion, index: number): unknown {
             required: question.required,
             grading: grading(question),
             ...questionKind(question),
+          },
+        },
+      },
+      location: { index },
+    },
+  };
+}
+
+function createRiddleRequest(riddle: string, index: number): unknown {
+  return {
+    createItem: {
+      item: {
+        title: `Bonus riddle: ${riddle}`,
+        questionItem: {
+          question: {
+            required: false,
+            textQuestion: { paragraph: false },
           },
         },
       },
@@ -208,6 +251,21 @@ class OAuthFormsTransport implements FormsTransport {
   async request(options: FormsRequest): Promise<unknown> {
     const response = await this.client.request(options);
     return response.data;
+  }
+}
+
+class RiddlesApiProvider implements RiddleProvider {
+  async getRiddle(): Promise<string | undefined> {
+    const category =
+      RIDDLE_CATEGORIES[Math.floor(Math.random() * RIDDLE_CATEGORIES.length)];
+    const response = await fetch(`${RIDDLES_API}/${category}`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const result = riddleSchema.safeParse(await response.json());
+    return result.success ? result.data.riddle : undefined;
   }
 }
 

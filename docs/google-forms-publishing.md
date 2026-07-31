@@ -15,7 +15,9 @@ Diffler rejects stale metadata, omitted paths, and source ranges that do not
 intersect changed head-side lines before making an API request. It then:
 
 1. Creates an explicitly unpublished form.
-2. Atomically enables quiz mode and adds every graded question.
+2. Atomically enables quiz mode, adds every graded question, and attempts to add
+   one optional ungraded riddle from the public Riddles API. An unavailable or
+   invalid riddle response does not block publication.
 3. Explicitly publishes the form and enables responses.
 4. Prints the form ID, responder URL, and editor URL.
 

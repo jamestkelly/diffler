@@ -7,6 +7,7 @@ import {
   type FormsRequest,
   type FormsTransport,
   GoogleFormsPublisher,
+  type RiddleProvider,
 } from "./google-forms.js";
 import { parseQuizDocument, type QuizDocument } from "./quiz.js";
 
@@ -14,7 +15,7 @@ describe("Feature: graded Google Forms publication", () => {
   it("Scenario: a validated quiz is created, configured, and published", async () => {
     // Given
     const transport = successfulTransport();
-    const publisher = new GoogleFormsPublisher(transport);
+    const publisher = publisherFor(transport);
 
     // When
     const result = await publisher.publish(quizDocument());
@@ -55,7 +56,7 @@ describe("Feature: graded Google Forms publication", () => {
   it("Scenario: quiz settings and all supported questions share one atomic update", async () => {
     // Given
     const transport = successfulTransport();
-    const publisher = new GoogleFormsPublisher(transport);
+    const publisher = publisherFor(transport);
 
     // When
     await publisher.publish(quizDocument());
@@ -144,8 +145,7 @@ describe("Feature: graded Google Forms publication", () => {
     ]);
 
     // When
-    const publish = () =>
-      new GoogleFormsPublisher(transport).publish(quizDocument());
+    const publish = () => publisherFor(transport).publish(quizDocument());
 
     // Then
     const error = await publish().catch((caught: unknown) => caught);
@@ -162,8 +162,7 @@ describe("Feature: graded Google Forms publication", () => {
     ]);
 
     // When
-    const publish = () =>
-      new GoogleFormsPublisher(transport).publish(quizDocument());
+    const publish = () => publisherFor(transport).publish(quizDocument());
 
     // Then
     const error = await publish().catch((caught: unknown) => caught);
@@ -186,8 +185,7 @@ describe("Feature: graded Google Forms publication", () => {
     ]);
 
     // When
-    const publish = () =>
-      new GoogleFormsPublisher(transport).publish(quizDocument());
+    const publish = () => publisherFor(transport).publish(quizDocument());
 
     // Then
     await expect(publish).rejects.toThrowError(
@@ -201,8 +199,7 @@ describe("Feature: graded Google Forms publication", () => {
     const transport = new RecordingTransport([{ formId: "form-123" }]);
 
     // When
-    const publish = () =>
-      new GoogleFormsPublisher(transport).publish(quizDocument());
+    const publish = () => publisherFor(transport).publish(quizDocument());
 
     // Then
     const error = await publish().catch((caught: unknown) => caught);
@@ -212,6 +209,49 @@ describe("Feature: graded Google Forms publication", () => {
     });
     expect(String(error)).toContain("responder URL was missing");
     expect(transport.requests).toHaveLength(1);
+  });
+
+  it("Scenario: a fetched riddle is appended as an optional ungraded question", async () => {
+    // Given
+    const transport = successfulTransport();
+    const publisher = publisherFor(transport, {
+      getRiddle: async () => "What has keys but cannot open locks?",
+    });
+
+    // When
+    await publisher.publish(quizDocument());
+
+    // Then
+    expect(transport.requests[1]?.data.requests).toContainEqual({
+      createItem: {
+        item: {
+          title: "Bonus riddle: What has keys but cannot open locks?",
+          questionItem: {
+            question: {
+              required: false,
+              textQuestion: { paragraph: false },
+            },
+          },
+        },
+        location: { index: 4 },
+      },
+    });
+  });
+
+  it("Scenario: a riddle lookup failure does not block quiz publication", async () => {
+    // Given
+    const transport = successfulTransport();
+    const publisher = publisherFor(transport, {
+      getRiddle: async () => {
+        throw new Error("riddles service unavailable");
+      },
+    });
+
+    // When
+    await publisher.publish(quizDocument());
+
+    // Then
+    expect(transport.requests[1]?.data.requests).toHaveLength(5);
   });
 });
 
@@ -232,6 +272,13 @@ class RecordingTransport implements FormsTransport {
 
 function successfulTransport(): RecordingTransport {
   return new RecordingTransport([createdForm(), {}, {}]);
+}
+
+function publisherFor(
+  transport: FormsTransport,
+  riddleProvider: RiddleProvider = { getRiddle: async () => undefined },
+): GoogleFormsPublisher {
+  return new GoogleFormsPublisher(transport, riddleProvider);
 }
 
 function createdForm(): unknown {
