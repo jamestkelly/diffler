@@ -524,21 +524,20 @@ function* chunkPatch(patch: string, maxBytes: number): Generator<DiffChunk> {
     return;
   }
 
-  let hunkStart = firstHunk;
+  let hunkEnd = firstHunk;
   let section = 1;
-  while (hunkStart < lines.length) {
-    const nextHunkOffset = lines
-      .slice(hunkStart + 1)
-      .findIndex((line) => line.startsWith("@@ "));
-    const hunkEnd =
-      nextHunkOffset === -1 ? lines.length : hunkStart + 1 + nextHunkOffset;
+  while (hunkEnd < lines.length) {
+    const hunkStart = hunkEnd;
+    hunkEnd += 1;
+    while (hunkEnd < lines.length && !lines[hunkEnd]?.startsWith("@@ ")) {
+      hunkEnd += 1;
+    }
     yield* chunkSection(
       "hunk",
       section,
       lines.slice(hunkStart, hunkEnd),
       maxBytes,
     );
-    hunkStart = hunkEnd;
     section += 1;
   }
 }
