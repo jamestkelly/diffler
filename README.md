@@ -16,7 +16,7 @@ OpenCode skill.
 
 ## Requirements
 
-- Node.js 22 or newer
+- Node.js 24 or newer
 - pnpm 10.33.4
 - Git 2.42 or newer
 
