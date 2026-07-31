@@ -137,6 +137,33 @@ describe("Feature: graded Google Forms publication", () => {
     });
   });
 
+  it("Scenario: an optional closing riddle is the final ungraded item", async () => {
+    // Given
+    const transport = successfulTransport();
+    const publisher = new GoogleFormsPublisher(transport);
+    const document = quizDocument();
+    const riddle = "What ref dances through a branch without moving?";
+
+    // When
+    await publisher.publish({ ...document, closingRiddle: riddle });
+
+    // Then
+    expect(transport.requests[1]?.data.requests).toContainEqual({
+      createItem: {
+        item: {
+          title: riddle,
+          questionItem: {
+            question: {
+              required: false,
+              textQuestion: { paragraph: false },
+            },
+          },
+        },
+        location: { index: 4 },
+      },
+    });
+  });
+
   it("Scenario: the Forms API fails before creating a form", async () => {
     // Given
     const transport = new RecordingTransport([

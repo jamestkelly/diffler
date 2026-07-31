@@ -67,4 +67,11 @@ describe("Feature: portable Diffler skill", () => {
     );
     expect(skill).toContain("cite at least one changed repository-relative");
   });
+
+  it("Scenario: the agent adds optional whimsy without exposing answers", () => {
+    // Given / When / Then
+    expect(skill).toContain("Optionally add `closingRiddle`");
+    expect(skill).toContain("Do not include its answer, secrets");
+    expect(skill).toContain("original one- or two-line poem");
+  });
 });

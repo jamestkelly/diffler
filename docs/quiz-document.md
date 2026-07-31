@@ -25,6 +25,7 @@ authoritative validation boundary before publication.
 | `diffHash` | Binds the quiz to the SHA-256 hash of the collected diff. |
 | `title` | Supplies the Google Form title. |
 | `questions` | Contains one or more graded questions. |
+| `closingRiddle` | Optionally supplies a whimsical ungraded final Form item. |
 
 ## Question Types
 

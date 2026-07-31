@@ -115,6 +115,10 @@ the same fact. Distractors must be plausible and unambiguously wrong. Do not ask
 about generated files, omitted content, unchanged implementation trivia, or
 facts that require hidden project history.
 
+Optionally add `closingRiddle`: a single whimsical riddle inspired only by the
+included diff. Do not include its answer, secrets, or omitted-content details.
+Diffler renders it as an ungraded, non-required final Form item.
+
 Use this top-level shape:
 
 ```json
@@ -126,6 +130,7 @@ Use this top-level shape:
   "headSha": "full Git object ID",
   "diffHash": "SHA-256 from context",
   "title": "Comprehension quiz for the branch change",
+  "closingRiddle": "Optional whimsical riddle about the included change",
   "questions": []
 }
 ```
@@ -175,7 +180,8 @@ diffler publish .diffler/quiz.json --context .diffler/context.json
 Do not retry automatically after an ambiguous create error or a partial failure.
 Follow the CLI recovery message to avoid duplicate Forms.
 
-On success, return the responder URL first and the editor URL second. Mention
+On success, return the responder URL first and the editor URL second. Then add
+an original one- or two-line poem about the included branch changes. Mention
 which files or change categories were intentionally omitted, but do not include
 questions, correct answers, credentials, context patches, or token-bearing error
 details in the response.
