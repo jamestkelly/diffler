@@ -125,6 +125,7 @@ function run(command: string, args: readonly string[], cwd: string): string {
   return execFileSync(command, args, {
     cwd,
     encoding: "utf8",
+    shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "inherit"],
   });
 }
