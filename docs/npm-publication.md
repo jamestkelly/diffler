@@ -1,7 +1,7 @@
 # npm Publication
 
 Diffler is packaged as the public scoped package `@diffler/cli`.
-Issue #25 prepares and tests the artifact but does not publish a release.
+Issue #25 prepared and tested the artifact but did not publish a release.
 
 ## Ownership
 
@@ -13,8 +13,7 @@ release, a maintainer must:
 1. Own or join the `diffler` npm organization.
 2. Enable two-factor authentication on the publishing account.
 3. Confirm `npm whoami` returns the intended maintainer account.
-4. Configure trusted publishing or a granular automation token in the release
-   workflow tracked by issue #26.
+4. Configure trusted publishing in the release workflow tracked by issue #26.
 
 Do not run `npm publish` manually while validating this issue.
 
@@ -34,4 +33,7 @@ installs the tarball into a temporary project and exercises `diffler --help`,
 The package includes compiled JavaScript, declarations and source maps, the quiz
 schema, the Diffler skill, documentation, the README, license, and package
 metadata. It excludes source files, tests, examples, repository configuration,
-generated Diffler documents, and credentials.
+generated Diffler documents, downloadable OAuth JSON, and user credentials. The
+release artifact contains Google's shared Desktop client configuration, which is
+public native-application configuration and is covered by the threat model in
+[Google Authentication](google-auth.md#production-operations).

@@ -23,6 +23,12 @@ try {
     pnpm,
     ["pack", "--pack-destination", packDirectory],
     repository,
+    {
+      ...process.env,
+      DIFFLER_GOOGLE_CLIENT_ID:
+        "543831196078-synthetic.apps.googleusercontent.com",
+      DIFFLER_GOOGLE_CLIENT_SECRET: "synthetic-public-client-value",
+    },
   );
 
   const archives = readdirSync(packDirectory).filter((file) =>
@@ -65,6 +71,9 @@ try {
 
   console.log(`Package smoke test passed: ${basename(archive)}`);
 } finally {
+  rmSync(join(repository, "dist", "google-oauth-client.generated.js"), {
+    force: true,
+  });
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
@@ -87,7 +96,16 @@ function assertPackageContents(archive: string): void {
     "docs/skill-installation.md",
     "schemas/quiz-document.schema.json",
     "skills/diffler/SKILL.md",
-    ...["auth", "cli", "diff-context", "google-forms", "quiz", "quiz-context"]
+    "dist/google-oauth-client.generated.js",
+    ...[
+      "auth",
+      "cli",
+      "diff-context",
+      "google-forms",
+      "google-oauth-client",
+      "quiz",
+      "quiz-context",
+    ]
       .flatMap((module) => [
         `dist/${module}.d.ts`,
         `dist/${module}.d.ts.map`,
@@ -141,10 +159,12 @@ function runCommandShim(
   command: string,
   args: readonly string[],
   cwd: string,
+  environment: NodeJS.ProcessEnv = process.env,
 ): string {
   return execFileSync(command, args, {
     cwd,
     encoding: "utf8",
+    env: environment,
     shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "inherit"],
   });
