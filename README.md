@@ -46,7 +46,9 @@ flow and manual verification steps.
 Install the agent workflow using the [skill installation guide](docs/skill-installation.md).
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
-CI runs the same command on pull requests and pushes to `main`.
+CI runs the same checks on pull requests and pushes to `main`.
+The stable `Review Gate` check and recommended branch protection are documented
+in [Repository Settings](docs/repository-settings.md).
 
 ## Intended Workflow
 
