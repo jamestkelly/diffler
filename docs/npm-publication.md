@@ -1,15 +1,16 @@
 # npm Publication
 
-Diffler is packaged as the public scoped package `@jamestkelly/diffler`.
+Diffler is packaged as the public scoped package `@diffler/cli`.
 Issue #25 prepares and tests the artifact but does not publish a release.
 
 ## Ownership
 
-The `@jamestkelly/diffler` name returned `404 Not Found` from the public npm
-registry on August 1, 2026, so no published package currently claims it. Before
-the first release, a maintainer must:
+The `@diffler/cli` name returned `404 Not Found` from the public npm registry on
+August 1, 2026, so no published package currently claims it. The `diffler` npm
+organization is owned by the `jamestkelly` maintainer account. Before the first
+release, a maintainer must:
 
-1. Own or join the `jamestkelly` npm organization or user scope.
+1. Own or join the `diffler` npm organization.
 2. Enable two-factor authentication on the publishing account.
 3. Confirm `npm whoami` returns the intended maintainer account.
 4. Configure trusted publishing or a granular automation token in the release
