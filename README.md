@@ -44,6 +44,8 @@ To authorize Google Forms publication, follow the
 See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
 flow and manual verification steps.
 Install the agent workflow using the [skill installation guide](docs/skill-installation.md).
+Maintainers can inspect and install the exact npm tarball by following the
+[npm publication guide](docs/npm-publication.md).
 
 The aggregate `check` command verifies formatting, linting, types, and tests.
 CI runs the same checks on pull requests and pushes to `main`.

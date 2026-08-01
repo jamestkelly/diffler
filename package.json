@@ -3,9 +3,39 @@
   "version": "0.0.0",
   "description": "Generate comprehension quizzes from Git branch diffs for Claude Code, OpenCode, and pull-request workflows.",
   "type": "module",
-  "private": true,
   "packageManager": "pnpm@10.33.4",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamestkelly/diffler.git"
+  },
+  "homepage": "https://github.com/jamestkelly/diffler#readme",
+  "bugs": {
+    "url": "https://github.com/jamestkelly/diffler/issues"
+  },
+  "keywords": [
+    "code-review",
+    "git",
+    "google-forms",
+    "quiz",
+    "claude-code",
+    "opencode"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "docs/diff-context.md",
+    "docs/google-auth.md",
+    "docs/google-forms-publishing.md",
+    "docs/npm-publication.md",
+    "docs/quiz-document.md",
+    "docs/repository-settings.md",
+    "docs/skill-installation.md",
+    "schemas/quiz-document.schema.json",
+    "skills/diffler/SKILL.md"
+  ],
   "engines": {
     "node": ">=24"
   },
@@ -15,9 +45,13 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
+    "package:smoke": "tsx scripts/package-smoke.ts",
+    "prepack": "pnpm check && pnpm schema:check && pnpm clean && pnpm build",
+    "schema:check": "tsx scripts/check-quiz-schema.ts",
     "schema:write": "tsx scripts/write-quiz-schema.ts",
     "start": "tsx src/cli.ts",
     "test": "vitest run",
