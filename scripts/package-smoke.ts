@@ -62,7 +62,7 @@ try {
 
 function assertPackageContents(archive: string): void {
   const actual = run("tar", ["-tzf", archive], repository)
-    .split("\n")
+    .split(/\r?\n/)
     .filter((path) => path.startsWith("package/") && !path.endsWith("/"))
     .map((path) => path.slice("package/".length))
     .sort();
