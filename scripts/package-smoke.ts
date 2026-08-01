@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -12,9 +13,15 @@ import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repository = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const temporaryRoot = mkdtempSync(join(tmpdir(), "diffler-package-"));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const changelogPath = join(repository, "CHANGELOG.md");
+
+if (existsSync(changelogPath)) {
+  throw new Error("Package smoke requires a clean release-only changelog");
+}
+const temporaryRoot = mkdtempSync(join(tmpdir(), "diffler-package-"));
+writeFileSync(changelogPath, "# Changelog\n\nPackage smoke fixture.\n");
 
 try {
   const packDirectory = join(temporaryRoot, "pack");
@@ -71,6 +78,7 @@ try {
 
   console.log(`Package smoke test passed: ${basename(archive)}`);
 } finally {
+  rmSync(changelogPath, { force: true });
   rmSync(join(repository, "dist", "google-oauth-client.generated.js"), {
     force: true,
   });
@@ -86,6 +94,7 @@ function assertPackageContents(archive: string): void {
   const expected = [
     "LICENSE",
     "README.md",
+    "CHANGELOG.md",
     "package.json",
     "docs/diff-context.md",
     "docs/google-auth.md",

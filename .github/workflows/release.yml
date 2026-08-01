@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [Review]
+    types: [completed]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish Release
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      vars.NPM_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    env:
+      REVIEWED_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Checkout Reviewed Commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.REVIEWED_SHA }}
+
+      - name: Verify Current Reviewed Main
+        id: reviewed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main --force --tags
+          if [[ "$(git rev-parse origin/main)" != "${REVIEWED_SHA}" ]]; then
+            echo "release=false" >> "${GITHUB_OUTPUT}"
+            echo "Reviewed commit was superseded by a newer main commit."
+            exit 0
+          fi
+          review_gates="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${REVIEWED_SHA}/check-runs" \
+            --jq '[.check_runs[] | select(.name == "Review Gate" and .conclusion == "success")] | length')"
+          if [[ "${review_gates}" -lt 1 ]]; then
+            echo "Reviewed commit has no successful Review Gate." >&2
+            exit 1
+          fi
+          git switch --force-create main "${REVIEWED_SHA}"
+          git branch --set-upstream-to=origin/main main
+          echo "release=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Install pnpm
+        if: steps.reviewed.outputs.release == 'true'
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+
+      - name: Install Node.js
+        if: steps.reviewed.outputs.release == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.15.0
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Current npm CLI
+        if: steps.reviewed.outputs.release == 'true'
+        run: npm install --global npm@12.0.2
+
+      - name: Install Dependencies
+        if: steps.reviewed.outputs.release == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Release Commit
+        if: steps.reviewed.outputs.release == 'true'
+        run: pnpm check
+
+      - name: Restore Cumulative Changelog
+        if: steps.reviewed.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_tag="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')"
+          if [[ -z "${latest_tag}" ]]; then
+            node --eval "require('node:fs').writeFileSync('CHANGELOG.md', '# Changelog\n\n')"
+          else
+            gh release download "${latest_tag}" --pattern CHANGELOG.md --dir .
+          fi
+
+      - name: Publish npm and GitHub Release
+        if: steps.reviewed.outputs.release == 'true'
+        env:
+          DIFFLER_GOOGLE_CLIENT_ID: ${{ secrets.DIFFLER_GOOGLE_CLIENT_ID }}
+          DIFFLER_GOOGLE_CLIENT_SECRET: ${{ secrets.DIFFLER_GOOGLE_CLIENT_SECRET }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm release
