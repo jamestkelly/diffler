@@ -19,7 +19,11 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 try {
   const packDirectory = join(temporaryRoot, "pack");
   mkdirSync(packDirectory);
-  run(pnpm, ["pack", "--pack-destination", packDirectory], repository);
+  runCommandShim(
+    pnpm,
+    ["pack", "--pack-destination", packDirectory],
+    repository,
+  );
 
   const archives = readdirSync(packDirectory).filter((file) =>
     file.endsWith(".tgz"),
@@ -36,7 +40,11 @@ try {
     join(installation, "package.json"),
     '{"name":"diffler-package-smoke","private":true}',
   );
-  run(npm, ["install", "--no-audit", "--no-fund", archive], installation);
+  runCommandShim(
+    npm,
+    ["install", "--no-audit", "--no-fund", archive],
+    installation,
+  );
 
   const binary = join(
     installation,
@@ -122,6 +130,18 @@ function smokeContext(binary: string, temporaryRoot: string): void {
 }
 
 function run(command: string, args: readonly string[], cwd: string): string {
+  return execFileSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+}
+
+function runCommandShim(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+): string {
   return execFileSync(command, args, {
     cwd,
     encoding: "utf8",
