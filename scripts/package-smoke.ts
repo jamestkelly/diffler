@@ -13,11 +13,13 @@ import { fileURLToPath } from "node:url";
 
 const repository = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const temporaryRoot = mkdtempSync(join(tmpdir(), "diffler-package-"));
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 try {
   const packDirectory = join(temporaryRoot, "pack");
   mkdirSync(packDirectory);
-  run("pnpm", ["pack", "--pack-destination", packDirectory], repository);
+  run(pnpm, ["pack", "--pack-destination", packDirectory], repository);
 
   const archives = readdirSync(packDirectory).filter((file) =>
     file.endsWith(".tgz"),
@@ -34,7 +36,7 @@ try {
     join(installation, "package.json"),
     '{"name":"diffler-package-smoke","private":true}',
   );
-  run("npm", ["install", "--no-audit", "--no-fund", archive], installation);
+  run(npm, ["install", "--no-audit", "--no-fund", archive], installation);
 
   const binary = join(
     installation,
