@@ -1,0 +1,52 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {},
+        "releaseRules": [
+          { "breaking": true, "release": "major" },
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "revert", "release": "patch" },
+          { "type": "build", "release": false },
+          { "type": "chore", "release": false },
+          { "type": "ci", "release": false },
+          { "type": "docs", "release": false },
+          { "type": "refactor", "release": false },
+          { "type": "style", "release": false },
+          { "type": "test", "release": false }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      { "preset": "conventionalcommits", "presetConfig": {} }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Changelog\n\nAll notable Diffler changes are recorded here."
+      }
+    ],
+    "@semantic-release/npm",
+    "./scripts/verify-reviewed-head.js",
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "CHANGELOG.md",
+            "label": "Cumulative changelog"
+          }
+        ],
+        "successComment": false,
+        "failComment": false
+      }
+    ]
+  ]
+}
