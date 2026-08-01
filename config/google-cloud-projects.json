@@ -1,0 +1,26 @@
+{
+  "environments": [
+    {
+      "name": "test",
+      "projectId": "diffler-testing",
+      "projectNumber": "641575763044",
+      "requiredApis": ["forms.googleapis.com"],
+      "oauth": {
+        "audience": "external",
+        "publishingStatus": "testing",
+        "verificationStatus": "not-required"
+      }
+    },
+    {
+      "name": "production",
+      "projectId": "diffler",
+      "projectNumber": "543831196078",
+      "requiredApis": ["forms.googleapis.com"],
+      "oauth": {
+        "audience": "external",
+        "publishingStatus": "production",
+        "verificationStatus": "pending"
+      }
+    }
+  ]
+}

@@ -16,6 +16,16 @@ in memory only.
    **Desktop app** application type, and download its JSON file.
 5. Keep the downloaded file outside your repository. Do not commit it.
 
+Maintainers use these canonical environments:
+
+| Environment | Project ID | Project number | OAuth state |
+| --- | --- | --- | --- |
+| Test | `diffler-testing` | `641575763044` | External, testing |
+| Production | `diffler` | `543831196078` | External, published; verification pending |
+
+The non-secret source of truth is
+[`config/google-cloud-projects.json`](../config/google-cloud-projects.json).
+
 Diffler requests only the
 `https://www.googleapis.com/auth/forms.body` scope. This scope permits creating
 and updating Forms without granting general access to Google Drive.
@@ -56,3 +66,53 @@ is available; it does not fall back to storing refresh credentials in a file.
 OAuth errors are intentionally summarized so credentials and tokens are not
 included in terminal output. If authorization expires or is revoked, run
 `diffler auth login` again.
+
+## Maintainer Readiness Check
+
+Authenticate `gcloud` interactively if needed, then confirm which account is
+active. The readiness command does not change the active account or global
+project:
+
+```sh
+gcloud auth login
+gcloud auth list
+pnpm cloud:check
+```
+
+Optionally verify that downloaded Desktop clients belong to the intended
+projects. The checker reads the files without printing or persisting their
+client secrets:
+
+```sh
+pnpm cloud:check -- \
+  --test-credentials ~/Downloads/diffler-testing-client.json \
+  --production-credentials ~/Downloads/diffler-production-client.json
+```
+
+Every project query includes an explicit `--project` flag. The command is
+read-only: it does not create projects, enable APIs, alter IAM or billing, or
+replace OAuth clients. Failures must be corrected deliberately in Google Cloud
+Console or with a separately reviewed mutation command.
+
+## Console-Only OAuth Checklist
+
+The general `gcloud` CLI cannot reliably inspect the complete Google Auth
+Platform configuration. For each environment, record dated evidence from
+Google Cloud Console without copying client secrets or user tokens:
+
+- Branding identifies Diffler and lists current support and developer contacts.
+- Audience is External.
+- Test remains in Testing and lists only intended test users.
+- Production is published before public use.
+- Data Access requests only
+  `https://www.googleapis.com/auth/forms.body` unless a reviewed change requires
+  another scope.
+- The OAuth client application type is Desktop app.
+- Production OAuth verification status and any requested remediation are
+  recorded in the tracking issue.
+- The downloaded client ID begins with the expected project number from the
+  manifest.
+
+Production public onboarding remains blocked while Google displays the
+unverified-app warning. Verification evidence must not include credentials,
+authorization codes, access tokens, or refresh tokens.

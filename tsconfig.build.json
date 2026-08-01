@@ -8,5 +8,10 @@
     "declaration": true,
     "declarationMap": true
   },
-  "exclude": ["src/**/*.test.ts", "src/test-setup.ts", "scripts/**/*.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/cloud-readiness.ts",
+    "src/test-setup.ts",
+    "scripts/**/*.ts"
+  ]
 }

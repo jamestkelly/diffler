@@ -46,6 +46,7 @@
     "build": "tsc --project tsconfig.build.json",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "cloud:check": "tsx scripts/cloud-check.ts",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
