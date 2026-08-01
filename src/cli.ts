@@ -29,7 +29,7 @@ Generate comprehension quizzes from Git branch diffs.
 
 Usage:
   diffler --help
-  diffler auth login --credentials <path>
+  diffler auth login [--credentials <path>]
   diffler auth status
   diffler auth logout
   diffler validate <quiz.json> [--context <context.json>]
@@ -233,14 +233,17 @@ async function runAuth(
   try {
     switch (args[0]) {
       case "login": {
-        if (args.length !== 3 || args[1] !== "--credentials") {
-          throw new Error("Usage: diffler auth login --credentials <path>");
+        if (args.length === 1) {
+          await auth.login();
+        } else if (
+          args.length === 3 &&
+          args[1] === "--credentials" &&
+          args[2] !== undefined
+        ) {
+          await auth.login(resolve(cwd, args[2]));
+        } else {
+          throw new Error("Usage: diffler auth login [--credentials <path>]");
         }
-        const credentialsPath = args[2];
-        if (credentialsPath === undefined) {
-          throw new Error("Usage: diffler auth login --credentials <path>");
-        }
-        await auth.login(resolve(cwd, credentialsPath));
         write(
           "Authenticated with Google; refresh credentials stored in the OS keychain",
         );

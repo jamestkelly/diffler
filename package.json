@@ -19,6 +19,7 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
+    "oauth:inject": "tsx scripts/inject-google-oauth-client.ts",
     "schema:write": "tsx scripts/write-quiz-schema.ts",
     "start": "tsx src/cli.ts",
     "test": "vitest run",

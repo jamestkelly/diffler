@@ -10,8 +10,10 @@ import {
   type ClientCredentials,
   GOOGLE_FORMS_SCOPE,
   GoogleAuthService,
+  oauthErrorMessage,
   type OAuthFlow,
   parseClientCredentials,
+  providerErrorCode,
   type StoredAuthorization,
 } from "./auth.js";
 
@@ -68,6 +70,39 @@ describe("Feature: Google OAuth client credentials", () => {
 });
 
 describe("Feature: persisted Google authorization", () => {
+  it("Scenario: first-party configuration stays out of keychain storage", async () => {
+    // Given
+    const store = new MemoryAuthorizationStore();
+    const oauth = new StubOAuthFlow();
+    const auth = new GoogleAuthService(store, oauth, async () => ({
+      clientId: "production-client.apps.googleusercontent.com",
+      clientSecret: "public-desktop-client-secret",
+    }));
+
+    // When
+    await auth.login();
+    const authenticated = await auth.status();
+
+    // Then
+    expect(oauth.authorizedWith).toEqual({
+      clientId: "production-client.apps.googleusercontent.com",
+      clientSecret: "public-desktop-client-secret",
+    });
+    expect(JSON.parse(store.value ?? "")).toEqual({
+      client: "first-party",
+      refreshToken: "refresh-token",
+    });
+    expect(store.value).not.toContain("clientSecret");
+    expect(store.value).not.toContain("public-desktop-client-secret");
+    expect(authenticated).toBe(true);
+    expect(oauth.validatedWith).toEqual({
+      client: "first-party",
+      clientId: "production-client.apps.googleusercontent.com",
+      clientSecret: "public-desktop-client-secret",
+      refreshToken: "refresh-token",
+    });
+  });
+
   it("Scenario: first login stores only durable authorization", async () => {
     // Given
     const credentialsPath = writeCredentials();
@@ -84,6 +119,7 @@ describe("Feature: persisted Google authorization", () => {
       clientSecret: "client-secret",
     });
     expect(JSON.parse(store.value ?? "")).toEqual({
+      client: "bring-your-own",
       clientId: "client-id.apps.googleusercontent.com",
       clientSecret: "client-secret",
       refreshToken: "refresh-token",
@@ -94,6 +130,7 @@ describe("Feature: persisted Google authorization", () => {
   it("Scenario: a later run validates its refresh credential", async () => {
     // Given
     const authorization: StoredAuthorization = {
+      client: "bring-your-own",
       clientId: "client-id",
       clientSecret: "client-secret",
       refreshToken: "refresh-token",
@@ -108,6 +145,30 @@ describe("Feature: persisted Google authorization", () => {
     // Then
     expect(authenticated).toBe(true);
     expect(oauth.validatedWith).toEqual(authorization);
+  });
+
+  it("Scenario: a prior release stored untagged authorization", async () => {
+    // Given
+    const legacyAuthorization = {
+      clientId: "legacy-client-id",
+      clientSecret: "legacy-client-secret",
+      refreshToken: "legacy-refresh-token",
+    };
+    const oauth = new StubOAuthFlow();
+    const auth = new GoogleAuthService(
+      new MemoryAuthorizationStore(JSON.stringify(legacyAuthorization)),
+      oauth,
+    );
+
+    // When
+    const authenticated = await auth.status();
+
+    // Then
+    expect(authenticated).toBe(true);
+    expect(oauth.validatedWith).toEqual({
+      client: "bring-your-own",
+      ...legacyAuthorization,
+    });
   });
 
   it("Scenario: no authorization has been stored", async () => {
@@ -194,6 +255,63 @@ describe("Feature: Google authorization scope", () => {
   });
 });
 
+describe("Feature: actionable Google authorization errors", () => {
+  it.each([
+    [
+      "access_denied",
+      "Google authorization was denied; if Google shows an unverified-app warning, continue only if you trust Diffler",
+    ],
+    [
+      "admin_policy_enforced",
+      "Your Google Workspace administrator blocked Diffler; ask an administrator to allow the Diffler OAuth client",
+    ],
+    [
+      "invalid_client",
+      "Diffler's first-party Google client is unavailable; use --credentials with your own Desktop client or contact the maintainer",
+    ],
+    [
+      "invalid_grant",
+      "Google authorization was revoked or expired; run diffler auth login again",
+    ],
+    [
+      "quota_exceeded",
+      "Diffler's Google API quota is temporarily exhausted; try again later or contact the maintainer",
+    ],
+  ])("Scenario: Google returns %s", (code, expected) => {
+    // Given / When / Then
+    expect(oauthErrorMessage(code)).toBe(expected);
+  });
+
+  it("Scenario: a provider error contains sensitive diagnostic details", () => {
+    // Given
+    const secret = "do-not-print-this-refresh-token";
+    const error = {
+      response: {
+        data: {
+          error: "invalid_grant",
+          error_description: secret,
+        },
+      },
+    };
+
+    // When
+    const message = oauthErrorMessage(providerErrorCode(error), true);
+
+    // Then
+    expect(message).toBe(
+      "Google authorization was revoked or expired; run diffler auth login again",
+    );
+    expect(message).not.toContain(secret);
+  });
+
+  it("Scenario: a bring-your-own client is rejected", () => {
+    // Given / When / Then
+    expect(oauthErrorMessage("invalid_client", false, false)).toBe(
+      "Google rejected the supplied Desktop client; download valid credentials or use Diffler's first-party login",
+    );
+  });
+});
+
 class MemoryAuthorizationStore implements AuthorizationStore {
   allowDelete = true;
 
@@ -221,7 +339,10 @@ class StubOAuthFlow implements OAuthFlow {
   authorizedWith: ClientCredentials | null = null;
   validatedWith: StoredAuthorization | null = null;
 
-  async authorize(credentials: ClientCredentials): Promise<string> {
+  async authorize(
+    credentials: ClientCredentials,
+    _client: StoredAuthorization["client"],
+  ): Promise<string> {
     this.authorizedWith = credentials;
     return "refresh-token";
   }

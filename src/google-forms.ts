@@ -1,7 +1,7 @@
 import type { OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 
-import { GoogleAuthService } from "./auth.js";
+import { GoogleAuthService, providerErrorCode } from "./auth.js";
 import type { QuizDocument, QuizQuestion } from "./quiz.js";
 
 const FORMS_API = "https://forms.googleapis.com/v1/forms";
@@ -64,7 +64,11 @@ export class GoogleFormsPublisher implements QuizPublisher {
           },
         },
       });
-    } catch {
+    } catch (error) {
+      const actionable = actionableRequestError(error);
+      if (actionable !== null) {
+        throw actionable;
+      }
       throw new FormsPublishError(
         "Unable to confirm Google Form creation. Check Google Forms before retrying to avoid a duplicate",
       );
@@ -112,7 +116,15 @@ export class GoogleFormsPublisher implements QuizPublisher {
           ],
         },
       });
-    } catch {
+    } catch (error) {
+      const actionable = actionableRequestError(
+        error,
+        created.data.formId,
+        editUrl,
+      );
+      if (actionable !== null) {
+        throw actionable;
+      }
       throw partialFailure("configure", created.data.formId, editUrl);
     }
 
@@ -130,7 +142,15 @@ export class GoogleFormsPublisher implements QuizPublisher {
           updateMask: "publishState",
         },
       });
-    } catch {
+    } catch (error) {
+      const actionable = actionableRequestError(
+        error,
+        created.data.formId,
+        editUrl,
+      );
+      if (actionable !== null) {
+        throw actionable;
+      }
       throw partialFailure("publish", created.data.formId, editUrl);
     }
 
@@ -246,6 +266,38 @@ function partialFailure(
     formId,
     editUrl,
   );
+}
+
+function actionableRequestError(
+  error: unknown,
+  formId?: string,
+  editUrl?: string,
+): FormsPublishError | null {
+  const code = providerErrorCode(error);
+  const recovery =
+    formId === undefined || editUrl === undefined
+      ? ""
+      : ` Google Form ${formId} was already created; recover it at ${editUrl} and do not rerun publish unless you want a duplicate.`;
+  if (code === "invalid_grant") {
+    return new FormsPublishError(
+      `Google authorization was revoked or expired; run diffler auth login again.${recovery}`,
+      formId,
+      editUrl,
+    );
+  }
+  if (
+    code === "RESOURCE_EXHAUSTED" ||
+    code === "quotaExceeded" ||
+    code === "rateLimitExceeded" ||
+    code === "userRateLimitExceeded"
+  ) {
+    return new FormsPublishError(
+      `Diffler's Google API quota is temporarily exhausted; try again later or contact the maintainer.${recovery}`,
+      formId,
+      editUrl,
+    );
+  }
+  return null;
 }
 
 function editorUrl(formId: string): string {

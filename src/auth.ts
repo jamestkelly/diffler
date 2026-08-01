@@ -7,6 +7,8 @@ import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import open from "open";
 import { z } from "zod";
 
+import { loadFirstPartyGoogleClient } from "./google-oauth-client.js";
+
 export const GOOGLE_FORMS_SCOPE = "https://www.googleapis.com/auth/forms.body";
 
 const KEYCHAIN_SERVICE = "diffler";
@@ -23,7 +25,23 @@ const clientCredentialsSchema = z
   })
   .strict();
 
-const storedAuthorizationSchema = z
+const storedBringYourOwnAuthorizationSchema = z
+  .object({
+    client: z.literal("bring-your-own"),
+    clientId: z.string().min(1),
+    clientSecret: z.string().min(1),
+    refreshToken: z.string().min(1),
+  })
+  .strict();
+
+const storedFirstPartyAuthorizationSchema = z
+  .object({
+    client: z.literal("first-party"),
+    refreshToken: z.string().min(1),
+  })
+  .strict();
+
+const legacyStoredAuthorizationSchema = z
   .object({
     clientId: z.string().min(1),
     clientSecret: z.string().min(1),
@@ -31,12 +49,19 @@ const storedAuthorizationSchema = z
   })
   .strict();
 
+const storedAuthorizationSchema = z.union([
+  storedBringYourOwnAuthorizationSchema,
+  storedFirstPartyAuthorizationSchema,
+  legacyStoredAuthorizationSchema,
+]);
+
 export interface ClientCredentials {
   clientId: string;
   clientSecret: string;
 }
 
 export interface StoredAuthorization extends ClientCredentials {
+  client: "bring-your-own" | "first-party";
   refreshToken: string;
 }
 
@@ -47,12 +72,15 @@ export interface AuthorizationStore {
 }
 
 export interface OAuthFlow {
-  authorize(credentials: ClientCredentials): Promise<string>;
+  authorize(
+    credentials: ClientCredentials,
+    client: StoredAuthorization["client"],
+  ): Promise<string>;
   validate(authorization: StoredAuthorization): Promise<void>;
 }
 
 export interface AuthService {
-  login(credentialsPath: string): Promise<void>;
+  login(credentialsPath?: string): Promise<void>;
   status(): Promise<boolean>;
   logout(): Promise<boolean>;
 }
@@ -86,25 +114,24 @@ export class GoogleAuthService implements AuthService {
   constructor(
     private readonly store: AuthorizationStore = new KeychainAuthorizationStore(),
     private readonly oauth: OAuthFlow = new GoogleOAuthFlow(),
+    private readonly firstPartyClient: () => Promise<ClientCredentials> = loadFirstPartyGoogleClient,
   ) {}
 
-  async login(credentialsPath: string): Promise<void> {
-    let input: string;
-    try {
-      input = await readFile(credentialsPath, "utf8");
-    } catch {
-      throw new AuthError(
-        `Unable to read OAuth credentials: ${credentialsPath}`,
-      );
-    }
-
-    const credentials = parseClientCredentials(input);
-    const refreshToken = await this.oauth.authorize(credentials);
+  async login(credentialsPath?: string): Promise<void> {
+    const firstParty = credentialsPath === undefined;
+    const credentials = firstParty
+      ? await this.firstPartyClient()
+      : await readClientCredentials(credentialsPath);
+    const refreshToken = await this.oauth.authorize(
+      credentials,
+      firstParty ? "first-party" : "bring-your-own",
+    );
     await this.store.set(
-      JSON.stringify({
-        ...credentials,
-        refreshToken,
-      } satisfies StoredAuthorization),
+      JSON.stringify(
+        firstParty
+          ? { client: "first-party", refreshToken }
+          : { client: "bring-your-own", ...credentials, refreshToken },
+      ),
     );
   }
 
@@ -159,7 +186,19 @@ export class GoogleAuthService implements AuthService {
         "Stored Google authorization is invalid; run auth logout",
       );
     }
-    return result.data;
+    if ("client" in result.data && result.data.client === "first-party") {
+      return {
+        ...(await this.firstPartyClient()),
+        client: "first-party",
+        refreshToken: result.data.refreshToken,
+      };
+    }
+    return {
+      client: "bring-your-own",
+      clientId: result.data.clientId,
+      clientSecret: result.data.clientSecret,
+      refreshToken: result.data.refreshToken,
+    };
   }
 }
 
@@ -200,13 +239,16 @@ class KeychainAuthorizationStore implements AuthorizationStore {
 }
 
 class GoogleOAuthFlow implements OAuthFlow {
-  async authorize(credentials: ClientCredentials): Promise<string> {
+  async authorize(
+    credentials: ClientCredentials,
+    clientKind: StoredAuthorization["client"],
+  ): Promise<string> {
     const state = randomBytes(32).toString("base64url");
     const codeVerifier = randomBytes(64).toString("base64url");
     const codeChallenge = createHash("sha256")
       .update(codeVerifier)
       .digest("base64url");
-    const callback = await listenForCallback(state);
+    const callback = await listenForCallback(state, clientKind);
 
     try {
       const client = new OAuth2Client(
@@ -247,7 +289,11 @@ class GoogleOAuthFlow implements OAuthFlow {
         throw error;
       }
       throw new AuthError(
-        "Google authorization failed; no credentials were stored",
+        oauthErrorMessage(
+          providerErrorCode(error),
+          false,
+          clientKind === "first-party",
+        ),
       );
     } finally {
       callback.close();
@@ -258,9 +304,13 @@ class GoogleOAuthFlow implements OAuthFlow {
     const client = authorizedClient(authorization);
     try {
       await client.getAccessToken();
-    } catch {
+    } catch (error) {
       throw new AuthError(
-        "Google authorization is no longer valid; log in again",
+        oauthErrorMessage(
+          providerErrorCode(error),
+          true,
+          authorization.client === "first-party",
+        ),
       );
     }
   }
@@ -285,6 +335,7 @@ interface PendingCallback {
 
 async function listenForCallback(
   expectedState: string,
+  clientKind: StoredAuthorization["client"],
 ): Promise<PendingCallback> {
   let resolveCode: (code: string) => void = () => undefined;
   let rejectCode: (error: Error) => void = () => undefined;
@@ -306,7 +357,11 @@ async function listenForCallback(
     const authorizationCode = requestUrl.searchParams.get("code");
     if (oauthError !== null || authorizationCode === null) {
       response.writeHead(400).end("Authorization was not completed.");
-      rejectCode(new AuthError("Google authorization was denied"));
+      rejectCode(
+        new AuthError(
+          oauthErrorMessage(oauthError, false, clientKind === "first-party"),
+        ),
+      );
       return;
     }
     response
@@ -345,4 +400,81 @@ function keychainError(): AuthError {
   return new AuthError(
     "Unable to access the operating-system keychain; ensure a keychain service is available",
   );
+}
+
+async function readClientCredentials(
+  credentialsPath: string,
+): Promise<ClientCredentials> {
+  let input: string;
+  try {
+    input = await readFile(credentialsPath, "utf8");
+  } catch {
+    throw new AuthError(`Unable to read OAuth credentials: ${credentialsPath}`);
+  }
+  return parseClientCredentials(input);
+}
+
+const providerErrorSchema = z
+  .object({
+    response: z
+      .object({
+        data: z
+          .object({
+            error: z.union([
+              z.string(),
+              z
+                .object({
+                  status: z.string().optional(),
+                  errors: z
+                    .array(z.object({ reason: z.string() }).passthrough())
+                    .optional(),
+                })
+                .passthrough(),
+            ]),
+          })
+          .passthrough(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export function providerErrorCode(error: unknown): string | null {
+  const result = providerErrorSchema.safeParse(error);
+  if (!result.success) {
+    return null;
+  }
+  const providerError = result.data.response.data.error;
+  if (typeof providerError === "string") {
+    return providerError;
+  }
+  return providerError.errors?.[0]?.reason ?? providerError.status ?? null;
+}
+
+export function oauthErrorMessage(
+  code: string | null,
+  refreshing = false,
+  firstParty = true,
+): string {
+  switch (code) {
+    case "access_denied":
+      return "Google authorization was denied; if Google shows an unverified-app warning, continue only if you trust Diffler";
+    case "admin_policy_enforced":
+      return "Your Google Workspace administrator blocked Diffler; ask an administrator to allow the Diffler OAuth client";
+    case "org_internal":
+      return "The Diffler OAuth client is not available to this Google account; use --credentials with your own Desktop client";
+    case "deleted_client":
+    case "invalid_client":
+      return firstParty
+        ? "Diffler's first-party Google client is unavailable; use --credentials with your own Desktop client or contact the maintainer"
+        : "Google rejected the supplied Desktop client; download valid credentials or use Diffler's first-party login";
+    case "invalid_grant":
+      return "Google authorization was revoked or expired; run diffler auth login again";
+    case "quota_exceeded":
+    case "rate_limit_exceeded":
+      return "Diffler's Google API quota is temporarily exhausted; try again later or contact the maintainer";
+    default:
+      return refreshing
+        ? "Google authorization is no longer valid; run diffler auth login again"
+        : "Google authorization failed; no credentials were stored";
+  }
 }

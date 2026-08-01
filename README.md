@@ -40,7 +40,8 @@ pnpm start -- publish .diffler/quiz.json --context .diffler/context.json
 
 To authorize Google Forms publication, follow the
 [Google authentication setup](docs/google-auth.md), then run
-`diffler auth login --credentials <path>`.
+`diffler auth login`. Maintainers can still select a bring-your-own Desktop
+client with `--credentials <path>`.
 See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
 flow and manual verification steps.
 Install the agent workflow using the [skill installation guide](docs/skill-installation.md).

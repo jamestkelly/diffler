@@ -64,6 +64,29 @@ describe("Feature: CLI invocation", () => {
     ]);
   });
 
+  it("Scenario: a user logs in with Diffler's first-party client", async () => {
+    // Given
+    const output: string[] = [];
+    const auth = new StubAuthService();
+
+    // When
+    const exitCode = await run(
+      ["auth", "login"],
+      (message) => output.push(message),
+      console.error,
+      "/workspace",
+      auth,
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(auth.credentialsPath).toBeUndefined();
+    expect(auth.loginCalled).toBe(true);
+    expect(output).toEqual([
+      "Authenticated with Google; refresh credentials stored in the OS keychain",
+    ]);
+  });
+
   it("Scenario: a user checks status before logging in", async () => {
     // Given
     const errors: string[] = [];
@@ -220,12 +243,14 @@ describe("Feature: CLI invocation", () => {
 });
 
 class StubAuthService implements AuthService {
-  credentialsPath: string | null = null;
+  credentialsPath: string | undefined;
   authenticated = false;
+  loginCalled = false;
 
-  async login(credentialsPath: string): Promise<void> {
+  async login(credentialsPath?: string): Promise<void> {
     this.credentialsPath = credentialsPath;
     this.authenticated = true;
+    this.loginCalled = true;
   }
 
   async status(): Promise<boolean> {

@@ -204,6 +204,40 @@ describe("Feature: graded Google Forms publication", () => {
     expect(transport.requests).toHaveLength(2);
   });
 
+  it("Scenario: authorization is revoked after creating a form", async () => {
+    // Given
+    const transport = new RecordingTransport([
+      createdForm(),
+      providerError("invalid_grant"),
+    ]);
+
+    // When
+    const publish = () =>
+      new GoogleFormsPublisher(transport).publish(quizDocument());
+
+    // Then
+    const error = await publish().catch((caught: unknown) => caught);
+    expect(String(error)).toContain("run diffler auth login again");
+    expect(String(error)).toContain("form-123 was already created");
+    expect(error).toMatchObject({ formId: "form-123" });
+  });
+
+  it("Scenario: the Forms API quota is exhausted", async () => {
+    // Given
+    const transport = new RecordingTransport([
+      providerError("rateLimitExceeded"),
+    ]);
+
+    // When
+    const publish = () =>
+      new GoogleFormsPublisher(transport).publish(quizDocument());
+
+    // Then
+    await expect(publish).rejects.toThrowError(
+      "Diffler's Google API quota is temporarily exhausted; try again later or contact the maintainer.",
+    );
+  });
+
   it("Scenario: explicit publication fails after configuration", async () => {
     // Given
     const transport = new RecordingTransport([
@@ -266,6 +300,16 @@ function createdForm(): unknown {
     formId: "form-123",
     responderUri: "https://docs.google.com/forms/d/e/responder/viewform",
   };
+}
+
+function providerError(reason: string): Error {
+  return Object.assign(new Error("provider request failed"), {
+    response: {
+      data: {
+        error: { status: "RESOURCE_EXHAUSTED", errors: [{ reason }] },
+      },
+    },
+  });
 }
 
 function quizDocument(): QuizDocument {
