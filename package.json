@@ -1,5 +1,5 @@
 {
-  "name": "@jamestkelly/diffler",
+  "name": "@diffler/cli",
   "version": "0.0.0",
   "description": "Generate comprehension quizzes from Git branch diffs for Claude Code, OpenCode, and pull-request workflows.",
   "type": "module",
