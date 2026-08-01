@@ -6,7 +6,7 @@ updates:
       interval: weekly
       day: monday
       time: "09:00"
-      timezone: Pacific/Auckland
+      timezone: Australia/Sydney
     labels:
       - "area: repository"
     groups:
@@ -27,7 +27,7 @@ updates:
       interval: weekly
       day: monday
       time: "09:00"
-      timezone: Pacific/Auckland
+      timezone: Australia/Sydney
     labels:
       - "area: ci"
     groups:
