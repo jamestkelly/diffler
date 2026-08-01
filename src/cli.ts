@@ -418,7 +418,7 @@ function isNotFoundError(error: unknown): boolean {
 const entrypoint = process.argv[1];
 if (
   entrypoint !== undefined &&
-  import.meta.url === pathToFileURL(entrypoint).href
+  import.meta.url === pathToFileURL(realpathSync(entrypoint)).href
 ) {
   process.exitCode = await run(process.argv.slice(2));
 }

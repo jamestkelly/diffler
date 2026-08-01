@@ -51,6 +51,18 @@ describe("Feature: release-time Google OAuth client injection", () => {
     expect(existsSync(output)).toBe(false);
     await expect(inject).rejects.not.toThrowError(secret);
   });
+
+  it("Scenario: a development pack has no release configuration", async () => {
+    // Given
+    const output = temporaryOutput();
+    writeFileSync(output, "stale-client-configuration");
+
+    // When
+    await injectGoogleOAuthClient({}, output);
+
+    // Then
+    expect(existsSync(output)).toBe(false);
+  });
 });
 
 function temporaryOutput(): string {

@@ -33,6 +33,12 @@ export async function injectGoogleOAuthClient(
   }
 
   await rm(output, { force: true });
+  if (
+    environment.DIFFLER_GOOGLE_CLIENT_ID === undefined &&
+    environment.DIFFLER_GOOGLE_CLIENT_SECRET === undefined
+  ) {
+    return;
+  }
   const client = releaseClientSchema.parse({
     clientId: environment.DIFFLER_GOOGLE_CLIENT_ID,
     clientSecret: environment.DIFFLER_GOOGLE_CLIENT_SECRET,
