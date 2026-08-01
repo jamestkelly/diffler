@@ -51,7 +51,7 @@
     "format:check": "biome format .",
     "lint": "biome lint .",
     "package:smoke": "tsx scripts/package-smoke.ts",
-    "prepack": "pnpm check && pnpm schema:check && pnpm clean && pnpm build",
+    "prepack": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm schema:check && pnpm clean && pnpm build",
     "schema:check": "tsx scripts/check-quiz-schema.ts",
     "schema:write": "tsx scripts/write-quiz-schema.ts",
     "start": "tsx src/cli.ts",
