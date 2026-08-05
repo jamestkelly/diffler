@@ -7,12 +7,10 @@ configured before an agent invokes it.
 
 ## Install The CLI
 
-From a Diffler checkout:
+Install the public CLI:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm link --global
+npm install --global @diffler/cli
 diffler --help
 ```
 
@@ -25,38 +23,64 @@ skill session.
 Install for the current project:
 
 ```sh
-mkdir -p .claude/skills
-cp -R /path/to/diffler/skills/diffler .claude/skills/diffler
+diffler skill install claude --scope project
 ```
 
 Install for all projects:
 
 ```sh
-mkdir -p ~/.claude/skills
-cp -R /path/to/diffler/skills/diffler ~/.claude/skills/diffler
+diffler skill install claude --scope user
 ```
 
-Restart Claude Code after installation.
+Check or remove either installation by using the same agent and scope:
+
+```sh
+diffler skill status claude --scope project
+diffler skill uninstall claude --scope project
+```
+
+Claude Code normally detects changes under an existing skills directory. If the
+skills directory was created after Claude Code started and the skill is not
+discovered, restart Claude Code once.
 
 ## OpenCode
 
 Install for the current project:
 
 ```sh
-mkdir -p .opencode/skills
-cp -R /path/to/diffler/skills/diffler .opencode/skills/diffler
+diffler skill install opencode --scope project
 ```
 
 Install for all projects:
 
 ```sh
-mkdir -p ~/.config/opencode/skills
-cp -R /path/to/diffler/skills/diffler ~/.config/opencode/skills/diffler
+diffler skill install opencode --scope user
 ```
 
-OpenCode also discovers skills installed under `~/.claude/skills`. Restart
-OpenCode after installation because configuration-time files are not hot
-reloaded.
+OpenCode user installation honors `OPENCODE_CONFIG_DIR`, then
+`XDG_CONFIG_HOME`, before falling back to `~/.config/opencode`. Check or remove
+an installation with `skill status` or `skill uninstall` and the same scope.
+Restart OpenCode after installation or removal because configuration-time files
+are not hot reloaded.
+
+## Safety And Diagnostics
+
+Diffler records a digest beside each skill it installs. Repeating installation
+is safe and updates an unmodified Diffler-owned skill. A different or locally
+modified skill is preserved unless `--force` is explicitly supplied after
+reviewing the conflict. Uninstall removes only files owned by Diffler and leaves
+unrelated agent configuration in place.
+
+Run the local readiness checks after authentication and skill installation:
+
+```sh
+diffler doctor
+```
+
+Doctor checks Node.js, Git and repository state, the installed CLI and packaged
+assets, operating-system keychain access, Google authorization, and project and
+user skill discovery. It reports fixed, secret-safe messages and exits nonzero
+when a required prerequisite is unhealthy.
 
 ## Use The Skill
 

@@ -17,7 +17,7 @@ OpenCode skill.
 ## Requirements
 
 - Node.js 24 or newer
-- pnpm 10.33.4
+- pnpm 11.18.0
 - Git 2.42 or newer
 
 ## Development
@@ -33,15 +33,22 @@ pnpm build
 Run the development CLI:
 
 ```sh
-pnpm start -- --help
-pnpm start -- context --base main
-pnpm start -- publish .diffler/quiz.json --context .diffler/context.json
+pnpm start --help
+pnpm start context --base main
+pnpm start publish .diffler/quiz.json --context .diffler/context.json
 ```
 
 To authorize Google Forms publication, follow the
 [Google authentication setup](docs/google-auth.md), then run
 `diffler auth login`. Maintainers can still select a bring-your-own Desktop
 client with `--credentials <path>`.
+Install the packaged agent skill and check local readiness with:
+
+```sh
+diffler skill install claude --scope user
+diffler doctor
+```
+
 See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
 flow and manual verification steps.
 Install the agent workflow using the [skill installation guide](docs/skill-installation.md).
@@ -69,7 +76,7 @@ changes by running `pnpm cloud:check`; see
 ```text
 src/                 TypeScript CLI and domain implementation
 docs/                Context and quiz contracts
-skills/diffler/      Claude Code and OpenCode skill (planned)
+skills/diffler/      Packaged Claude Code and OpenCode skill
 .github/workflows/   Continuous integration
 ```
 
