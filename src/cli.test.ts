@@ -8,8 +8,10 @@ import { describe, expect, it } from "vitest";
 import type { AuthService } from "./auth.js";
 import { HELP_TEXT, run } from "./cli.js";
 import { collectDiffContext } from "./diff-context.js";
+import type { DoctorService } from "./doctor.js";
 import type { PublishedForm, QuizPublisher } from "./google-forms.js";
 import type { QuizDocument } from "./quiz.js";
+import type { SkillStatus, SkillStatusState } from "./skill-installation.js";
 
 describe("Feature: CLI invocation", () => {
   it("Scenario: a user invokes Diffler without arguments", async () => {
@@ -240,6 +242,202 @@ describe("Feature: CLI invocation", () => {
     ]);
     expect(publisher.document).toBeNull();
   });
+
+  it("Scenario: a user installs the Claude skill for an explicit project scope", async () => {
+    // Given
+    const output: string[] = [];
+    let received: unknown;
+
+    // When
+    const exitCode = await run(
+      ["skill", "install", "claude", "--scope", "project", "--force"],
+      (message) => output.push(message),
+      console.error,
+      "/workspace",
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createSkillService: (agent, scope) => ({
+          status: async () => skillStatus("current"),
+          install: async (options) => {
+            received = { agent, scope, options };
+            return {
+              outcome: "replaced",
+              targetPath: "/workspace/.claude/skills/diffler/SKILL.md",
+              status: skillStatus("current"),
+            };
+          },
+          uninstall: async () => ({
+            outcome: "missing",
+            targetPath: "unused",
+            status: skillStatus("missing"),
+          }),
+        }),
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(received).toEqual({
+      agent: "claude",
+      scope: "project",
+      options: { force: true },
+    });
+    expect(output).toContain("Diffler skill replaced for claude project scope");
+    expect(output).toContain(
+      "If Claude Code does not discover the skill, restart it once",
+    );
+  });
+
+  it("Scenario: a user checks a conflicting OpenCode skill", async () => {
+    // Given
+    const errors: string[] = [];
+
+    // When
+    const exitCode = await run(
+      ["skill", "status", "opencode", "--scope", "user"],
+      console.log,
+      (message) => errors.push(message),
+      "/workspace",
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createSkillService: () => ({
+          status: async () => skillStatus("conflict"),
+          install: async () => ({
+            outcome: "refused",
+            targetPath: "unused",
+            status: skillStatus("conflict"),
+          }),
+          uninstall: async () => ({
+            outcome: "refused",
+            targetPath: "unused",
+            status: skillStatus("conflict"),
+          }),
+        }),
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "A conflicting skill exists for opencode user scope; review it before using --force",
+    ]);
+  });
+
+  it("Scenario: uninstall refuses a conflicting unowned skill", async () => {
+    // Given
+    const errors: string[] = [];
+
+    // When
+    const exitCode = await run(
+      ["skill", "uninstall", "claude", "--scope", "project", "--force"],
+      console.log,
+      (message) => errors.push(message),
+      "/workspace",
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createSkillService: () => ({
+          status: async () => skillStatus("conflict"),
+          install: async () => ({
+            outcome: "refused",
+            targetPath: "unused",
+            status: skillStatus("conflict"),
+          }),
+          uninstall: async () => ({
+            outcome: "refused",
+            targetPath: "unused",
+            status: skillStatus("conflict"),
+          }),
+        }),
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "A conflicting unowned skill exists for claude project scope; Diffler will not remove it",
+    ]);
+  });
+
+  it("Scenario: a skill command omits its required scope", async () => {
+    // Given
+    const errors: string[] = [];
+
+    // When
+    const exitCode = await run(
+      ["skill", "install", "claude"],
+      console.log,
+      (message) => errors.push(message),
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Usage: diffler skill <install|status|uninstall> <claude|opencode> --scope <project|user> [--force]",
+    ]);
+  });
+
+  it("Scenario: doctor reports warnings without failing", async () => {
+    // Given
+    const output: string[] = [];
+    const doctor = stubDoctor([
+      {
+        id: "auth.google",
+        status: "warn",
+        state: "missing",
+        message: "Google authorization is missing; run diffler auth login.",
+      },
+    ]);
+
+    // When
+    const exitCode = await run(
+      ["doctor"],
+      (message) => output.push(message),
+      console.error,
+      "/workspace",
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      { doctor },
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(output).toEqual([
+      "[WARN] Google authorization is missing; run diffler auth login.",
+    ]);
+  });
+
+  it("Scenario: doctor fails when a prerequisite is unhealthy", async () => {
+    // Given
+    const output: string[] = [];
+    const doctor = stubDoctor([
+      {
+        id: "git.executable",
+        status: "fail",
+        state: "unavailable",
+        message: "Git is unavailable; install Git and ensure it is on PATH.",
+      },
+    ]);
+
+    // When
+    const exitCode = await run(
+      ["doctor"],
+      (message) => output.push(message),
+      console.error,
+      "/workspace",
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      { doctor },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(output).toEqual([
+      "[FAIL] Git is unavailable; install Git and ensure it is on PATH.",
+    ]);
+  });
 });
 
 class StubAuthService implements AuthService {
@@ -319,4 +517,19 @@ function contextBoundQuizRepository(): string {
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync("git", args, { cwd, stdio: "ignore" });
+}
+
+function skillStatus(state: SkillStatusState): SkillStatus {
+  return {
+    state,
+    targetPath: "/private/target/SKILL.md",
+    manifestPath: "/private/target/.diffler-install.json",
+    discoverable: state === "current",
+  };
+}
+
+function stubDoctor(
+  diagnostics: Awaited<ReturnType<DoctorService["diagnose"]>>,
+): DoctorService {
+  return { diagnose: async () => [...diagnostics] };
 }

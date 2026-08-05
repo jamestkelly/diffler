@@ -75,6 +75,7 @@ try {
     installation,
   );
   smokeContext(binary, temporaryRoot);
+  smokeSkillLifecycle(binary, installation);
 
   console.log(`Package smoke test passed: ${basename(archive)}`);
 } finally {
@@ -110,10 +111,12 @@ function assertPackageContents(archive: string): void {
       "auth",
       "cli",
       "diff-context",
+      "doctor",
       "google-forms",
       "google-oauth-client",
       "quiz",
       "quiz-context",
+      "skill-installation",
     ]
       .flatMap((module) => [
         `dist/${module}.d.ts`,
@@ -128,6 +131,37 @@ function assertPackageContents(archive: string): void {
     throw new Error(
       `Unexpected package contents\nExpected: ${expected.join(", ")}\nActual: ${actual.join(", ")}`,
     );
+  }
+}
+
+function smokeSkillLifecycle(binary: string, installation: string): void {
+  const skillPath = join(
+    installation,
+    ".claude",
+    "skills",
+    "diffler",
+    "SKILL.md",
+  );
+  runBinary(
+    binary,
+    ["skill", "install", "claude", "--scope", "project"],
+    installation,
+  );
+  if (!existsSync(skillPath)) {
+    throw new Error("Installed CLI did not install the packaged Diffler skill");
+  }
+  runBinary(
+    binary,
+    ["skill", "status", "claude", "--scope", "project"],
+    installation,
+  );
+  runBinary(
+    binary,
+    ["skill", "uninstall", "claude", "--scope", "project"],
+    installation,
+  );
+  if (existsSync(skillPath)) {
+    throw new Error("Installed CLI did not remove its Diffler skill");
   }
 }
 
