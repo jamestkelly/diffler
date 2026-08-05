@@ -38,6 +38,55 @@ describe("Feature: portable Diffler skill", () => {
     );
   });
 
+  it("Scenario: the user explicitly chooses delivery after validation", () => {
+    // Given
+    const validate = skill.indexOf("### 5. Validate Before Delivery");
+    const delivery = skill.indexOf("### 6. Choose Delivery");
+    const local = skill.indexOf("#### Local Terminal");
+    const forms = skill.indexOf("#### Google Forms");
+
+    // When / Then
+    expect(validate).toBeGreaterThan(0);
+    expect(delivery).toBeGreaterThan(validate);
+    expect(local).toBeGreaterThan(delivery);
+    expect(forms).toBeGreaterThan(local);
+    expect(skill).toContain(
+      "If the user already requested local terminal or Google Forms delivery",
+    );
+    expect(skill).toContain("explicitly ask them to\nchoose a delivery mode");
+  });
+
+  it("Scenario: local delivery runs only in the user's interactive terminal", () => {
+    // Given / When / Then
+    expect(skill).toContain(
+      "diffler quiz .diffler/quiz.json --context .diffler/context.json",
+    );
+    expect(skill).toContain(
+      "user runs the quiz command in their own interactive terminal",
+    );
+    expect(skill).toContain(
+      "do not invoke it through a noninteractive agent shell",
+    );
+    expect(skill).toContain("requires no Google authentication or network");
+    expect(skill).toContain(
+      "Never ask the user to submit quiz responses through agent chat",
+    );
+  });
+
+  it("Scenario: Google authentication is confined to Forms delivery", () => {
+    // Given
+    const local = skill.slice(
+      skill.indexOf("#### Local Terminal"),
+      skill.indexOf("#### Google Forms"),
+    );
+    const forms = skill.slice(skill.indexOf("#### Google Forms"));
+
+    // When / Then
+    expect(local).not.toContain("diffler auth status");
+    expect(forms).toContain("diffler auth status");
+    expect(skill).toContain("For Google Forms delivery only");
+  });
+
   it("Scenario: credentials remain outside model context", () => {
     // Given / When / Then
     expect(skill).toContain("Never run `diffler auth login`");
@@ -46,6 +95,8 @@ describe("Feature: portable Diffler skill", () => {
     );
     expect(skill).toContain("Never stage or commit them");
     expect(skill).toContain("chmod 600 .diffler/quiz.json");
+    expect(skill).toContain("necessarily contains the grading key");
+    expect(skill).toContain("Never\n  reveal or summarize");
   });
 
   it("Scenario: context cannot support a sound quiz", () => {

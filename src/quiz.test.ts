@@ -110,8 +110,9 @@ describe("Feature: quiz document validation", () => {
 
     // Then
     expect(parse).toThrowError(
-      /Correct answer is not present in options: Missing/,
+      /A correct answer is not present in the available options/,
     );
+    expect(parse).not.toThrowError(/Missing/);
   });
 
   it("Scenario: a choice question repeats an option", () => {

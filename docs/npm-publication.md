@@ -28,7 +28,9 @@ pnpm package:smoke
 The command runs the prepack checks, removes stale build output, builds the CLI,
 creates a tarball, and rejects any file outside the reviewed allowlist. It then
 installs the tarball into a temporary project and exercises `diffler --help`,
-`diffler validate`, and `diffler context` through the installed binary.
+`diffler validate`, `diffler context`, and an installed local quiz through the
+installed binary. The quiz smoke injects prompt dependencies so it remains
+deterministic and does not require an interactive package-test terminal.
 
 The package includes compiled JavaScript, declarations and source maps, the quiz
 schema, the Diffler skill, documentation, the README, license, and package

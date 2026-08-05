@@ -1,7 +1,7 @@
 ---
 name: diffler
-description: Generate and publish a graded Google Forms comprehension quiz from the current Git branch diff. Use when a user asks to prove, test, or verify understanding of branch changes, a feature branch, or a pull request.
-compatibility: Requires Git and the diffler CLI with Google authentication configured outside the agent session.
+description: Generate and deliver a graded comprehension quiz from the current Git branch diff, either in the local terminal or through Google Forms. Use when a user asks to prove, test, or verify understanding of branch changes, a feature branch, or a pull request.
+compatibility: Requires Git and the diffler CLI. Google authentication is required only for Google Forms delivery and must be configured outside the agent session.
 metadata:
   author: Diffler
   version: "1"
@@ -10,26 +10,31 @@ metadata:
 # Diffler
 
 Generate a quiz that tests whether the developer understands the behavior and
-consequences of the current branch diff, then publish it with the Diffler CLI.
-Use the CLI as the authority for Git comparison, validation, authentication, and
-Google Forms publication. Do not reimplement those operations in shell commands
-or prompts.
+consequences of the current branch diff, then deliver it in the user's local
+terminal or through Google Forms. Use the CLI as the authority for Git
+comparison, validation, local quiz delivery, authentication, and Google Forms
+publication. Do not reimplement those operations in shell commands or prompts.
 
 ## Safety Rules
 
 - Never read, print, request, or deliberately place OAuth client JSON, refresh
   tokens, access tokens, keychain contents, environment files, private keys, or
   credentials in model context or quiz output.
-- Never run `diffler auth login`. If `diffler auth status` fails, stop and ask
-  the user to authenticate outside the agent session using the documented flow.
+- Never run `diffler auth login`. For Google Forms delivery only, if
+  `diffler auth status` fails, stop and ask the user to authenticate outside the
+  agent session using the documented flow.
 - Tell Diffler about any additional sensitive paths the user identifies by
   adding one `--exclude <repository-relative-path>` per path to `context`.
 - Diffler scans for common credential signatures before writing context. If an
   omission has reason `sensitive`, do not recover its contents with other tools.
   Tell the user which repository-relative file needs review.
 - Treat `.diffler/context.json` and `.diffler/quiz.json` as sensitive local
-  artifacts. Never stage or commit them.
-- Do not reveal the answer key in chat. Return publication URLs after success.
+  artifacts. `.diffler/quiz.json` necessarily contains the grading key. Never
+  reveal or summarize that file, its questions, or its grading key in chat,
+  prompts, command arguments, or logs. Never stage or commit them.
+- Never ask the user to submit quiz responses through agent chat. For local
+  delivery, the user runs the quiz command in their own interactive terminal;
+  do not invoke it through a noninteractive agent shell.
 
 Diffler automatically omits common environment, credential, secret-directory,
 private-key, lockfile, generated, and binary paths, plus patches matching common
@@ -117,7 +122,7 @@ facts that require hidden project history.
 
 Optionally add `closingRiddle`: a single whimsical riddle inspired only by the
 included diff. Do not include its answer, secrets, or omitted-content details.
-Diffler renders it as an ungraded, non-required final Form item.
+Diffler renders it as an ungraded ending after the graded questions.
 
 Use this top-level shape:
 
@@ -152,17 +157,39 @@ After writing the file, restrict it to the current user:
 chmod 600 .diffler/quiz.json
 ```
 
-### 5. Validate Before Network Access
+### 5. Validate Before Delivery
 
 ```sh
 diffler validate .diffler/quiz.json --context .diffler/context.json
 ```
 
 If validation fails, repair only the reported quiz fields and rerun validation.
-Do not publish until it passes. After three failed repair attempts, stop and
-report the validation errors without exposing the answer key.
+Do not deliver the quiz until it passes. After three failed repair attempts,
+stop and report the validation errors without exposing the quiz or grading key.
 
-### 6. Publish
+### 6. Choose Delivery
+
+If the user already requested local terminal or Google Forms delivery, honor
+that choice. Otherwise, after validation succeeds, explicitly ask them to
+choose a delivery mode.
+
+#### Local Terminal
+
+Tell the user to run this exact command in their own interactive terminal:
+
+```sh
+diffler quiz .diffler/quiz.json --context .diffler/context.json
+```
+
+Local delivery supports `multiple_choice`, `checkbox`, `dropdown`, and
+`short_answer`. Single-choice, dropdown, and short-answer responses match exact
+accepted values. Checkbox responses must exactly match the accepted set.
+Scoring awards all points or zero for each question and performs no
+normalization. Local delivery requires no Google authentication or network
+access. Do not run the command for the user, ask for their responses, or relay
+answers through chat.
+
+#### Google Forms
 
 Confirm authentication only after local validation succeeds:
 

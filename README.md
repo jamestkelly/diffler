@@ -3,16 +3,16 @@
 Prove you understand the diff.
 
 Diffler generates comprehension quizzes from Git branch diffs for Claude Code,
-OpenCode, and pull-request workflows. Its first milestone is an agent skill that
-collects focused branch context, generates graded questions, and publishes them
-to Google Forms.
+OpenCode, and pull-request workflows. Its agent skill collects focused branch
+context, generates graded questions, and delivers them either as an offline quiz
+in your local terminal or as a published Google Form.
 
 ## Status
 
 Diffler is in early development. The repository contains the TypeScript project
 foundation, versioned quiz-document contract, local branch-context collection,
-Google Forms authentication and publication, and a portable Claude Code and
-OpenCode skill.
+interactive local quiz delivery, Google Forms authentication and publication,
+and a portable Claude Code and OpenCode skill.
 
 ## Requirements
 
@@ -35,10 +35,18 @@ Run the development CLI:
 ```sh
 pnpm start --help
 pnpm start context --base main
+pnpm start quiz .diffler/quiz.json --context .diffler/context.json
 pnpm start publish .diffler/quiz.json --context .diffler/context.json
 ```
 
-To authorize Google Forms publication, follow the
+Run an installed quiz locally, without Google authentication or network access:
+
+```sh
+diffler quiz .diffler/quiz.json --context .diffler/context.json
+```
+
+Google authentication is optional and needed only for Forms delivery. To
+authorize publication, follow the
 [Google authentication setup](docs/google-auth.md), then run
 `diffler auth login`. Maintainers can still select a bring-your-own Desktop
 client with `--credentials <path>`.
@@ -49,8 +57,8 @@ diffler skill install claude --scope user
 diffler doctor
 ```
 
-See [Google Forms publishing](docs/google-forms-publishing.md) for the publication
-flow and manual verification steps.
+See [Google Forms publishing](docs/google-forms-publishing.md) for the optional
+publication flow and manual verification steps.
 Install the agent workflow using the [skill installation guide](docs/skill-installation.md).
 Maintainers can inspect and install the exact npm tarball by following the
 [npm publication guide](docs/npm-publication.md).
@@ -69,7 +77,7 @@ changes by running `pnpm cloud:check`; see
 2. Exclude generated and low-value changes.
 3. Ask questions about behavior, rationale, risks, and changed invariants.
 4. Validate the quiz document.
-5. Create and publish an automatically graded Google Form.
+5. Choose an interactive local quiz or an automatically graded Google Form.
 
 ## Repository Layout
 

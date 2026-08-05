@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repository = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -74,6 +74,7 @@ try {
     ["validate", join(repository, "examples", "quiz.json")],
     installation,
   );
+  await smokeLocalQuiz(installation);
   smokeContext(binary, temporaryRoot);
   smokeSkillLifecycle(binary, installation);
 
@@ -114,9 +115,11 @@ function assertPackageContents(archive: string): void {
       "doctor",
       "google-forms",
       "google-oauth-client",
+      "local-quiz",
       "quiz",
       "quiz-context",
       "skill-installation",
+      "terminal-quiz-prompt",
     ]
       .flatMap((module) => [
         `dist/${module}.d.ts`,
@@ -131,6 +134,82 @@ function assertPackageContents(archive: string): void {
     throw new Error(
       `Unexpected package contents\nExpected: ${expected.join(", ")}\nActual: ${actual.join(", ")}`,
     );
+  }
+}
+
+async function smokeLocalQuiz(installation: string): Promise<void> {
+  const installationContents = readdirSync(installation).sort();
+  const { run } = await import(
+    pathToFileURL(
+      join(installation, "node_modules", "@diffler", "cli", "dist", "cli.js"),
+    ).href
+  );
+  const answers = [
+    ["To support explicit contract evolution"],
+    ["options", "correctAnswers", "points"],
+    ["SHA-256"],
+    ["unknown"],
+  ];
+  const expectedKinds = ["select", "multiselect", "select", "text"];
+  const output: string[] = [];
+  const errors: string[] = [];
+  let closeCalls = 0;
+  let promptCalls = 0;
+  const unavailable = async (): Promise<never> => {
+    throw new Error("Local quiz unexpectedly used an external dependency");
+  };
+
+  const exitCode = await run(
+    ["quiz", join(repository, "examples", "quiz.json")],
+    (message: string) => output.push(message),
+    (message: string) => errors.push(message),
+    installation,
+    { login: unavailable, status: unavailable, logout: unavailable },
+    { publish: unavailable },
+    {
+      createQuizPrompt: () => ({
+        ask: async (request: { kind: string }) => {
+          const answer = answers[promptCalls];
+          if (
+            answer === undefined ||
+            request.kind !== expectedKinds[promptCalls]
+          ) {
+            throw new Error(
+              "Installed CLI requested an unexpected quiz prompt",
+            );
+          }
+          promptCalls += 1;
+          return { kind: "answer", values: answer };
+        },
+        close: () => {
+          closeCalls += 1;
+        },
+      }),
+    },
+  );
+
+  if (exitCode !== 0) {
+    throw new Error(`Installed local quiz exited with ${exitCode}`);
+  }
+  if (promptCalls !== answers.length || closeCalls !== 1) {
+    throw new Error(
+      "Installed local quiz did not complete and close its prompt",
+    );
+  }
+  if (!output.includes("Score: 6/6 points (4/4 correct).")) {
+    throw new Error("Installed local quiz returned an unexpected final score");
+  }
+  if (errors.length !== 0) {
+    throw new Error(
+      `Installed local quiz returned errors: ${errors.join(", ")}`,
+    );
+  }
+  if (
+    existsSync(join(installation, ".diffler")) ||
+    JSON.stringify(readdirSync(installation).sort()) !==
+      JSON.stringify(installationContents)
+  ) {
+    throw new Error("Installed local quiz persisted attempt or answer data");
   }
 }
 

@@ -4,6 +4,10 @@ Diffler converts a validated quiz document into an automatically graded Google
 Form. Complete the [Google authentication setup](google-auth.md) before
 publishing.
 
+For an offline alternative that needs no Google authentication or network
+access, use the local terminal flow in the
+[skill installation guide](skill-installation.md#use-the-skill).
+
 ## Publish A Quiz
 
 ```sh
