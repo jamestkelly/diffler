@@ -2,8 +2,8 @@
 
 The Diffler skill is a single portable
 [`SKILL.md`](../skills/diffler/SKILL.md) used by Claude Code and OpenCode. It
-expects the `diffler` executable on `PATH` and Google authentication to be
-configured before an agent invokes it.
+always requires Git and the `diffler` executable on `PATH`. Google
+authentication is required only when Google Forms delivery is chosen.
 
 ## Install The CLI
 
@@ -14,9 +14,10 @@ npm install --global @diffler/cli
 diffler --help
 ```
 
-Complete [Google authentication](google-auth.md) directly in a terminal. Do not
-ask an agent to read the downloaded OAuth client file or perform login inside a
-skill session.
+Local quiz delivery needs no Google authentication or network access. To use
+Google Forms, complete [Google authentication](google-auth.md) directly in a
+terminal. Do not ask an agent to read the downloaded OAuth client file or
+perform login inside a skill session.
 
 ## Claude Code
 
@@ -71,7 +72,7 @@ modified skill is preserved unless `--force` is explicitly supplied after
 reviewing the conflict. Uninstall removes only files owned by Diffler and leaves
 unrelated agent configuration in place.
 
-Run the local readiness checks after authentication and skill installation:
+Run the complete readiness checks after skill installation:
 
 ```sh
 diffler doctor
@@ -79,8 +80,9 @@ diffler doctor
 
 Doctor checks Node.js, Git and repository state, the installed CLI and packaged
 assets, operating-system keychain access, Google authorization, and project and
-user skill discovery. It reports fixed, secret-safe messages and exits nonzero
-when a required prerequisite is unhealthy.
+user skill discovery. Because it checks complete Google Forms readiness as well
+as local prerequisites, it can report Forms-specific failures that do not block
+local quiz delivery. Its messages are fixed and secret-safe.
 
 ## Use The Skill
 
@@ -91,6 +93,9 @@ Use Diffler to test my understanding of this branch against main.
 ```
 
 The skill collects bounded context, generates a context-bound quiz document,
-validates it against the current branch, publishes it, and returns the responder
-and editor URLs. It stops rather than publishing when the diff is empty, trivial,
-sensitive, stale, or incomplete because of the context budget.
+validates it against the current branch, then offers local terminal or Google
+Forms delivery. In local mode, run the provided `diffler quiz` command yourself
+in an interactive terminal rather than sending answers through agent chat. In
+Forms mode, the skill checks authentication, publishes the quiz, and returns the
+responder and editor URLs. It stops before delivery when the diff is empty,
+trivial, sensitive, stale, or incomplete because of the context budget.

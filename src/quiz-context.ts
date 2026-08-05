@@ -63,7 +63,7 @@ export function validateQuizAgainstContext(
       JSON.stringify(context.limits.excludePaths)
   ) {
     throw new QuizContextError(
-      "Diff context is stale; collect context again before validating or publishing",
+      "Diff context is stale; collect context again before using this quiz",
     );
   }
   if (

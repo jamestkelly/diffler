@@ -82,7 +82,7 @@ function validateChoiceAnswers(
       context.addIssue({
         code: "custom",
         path: ["correctAnswers"],
-        message: `Correct answer is not present in options: ${answer}`,
+        message: "A correct answer is not present in the available options",
       });
     }
   }

@@ -1,15 +1,21 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AuthService } from "./auth.js";
 import { HELP_TEXT, run } from "./cli.js";
 import { collectDiffContext } from "./diff-context.js";
 import type { DoctorService } from "./doctor.js";
 import type { PublishedForm, QuizPublisher } from "./google-forms.js";
+import {
+  LocalQuizError,
+  QuizCancelledError,
+  type QuizPrompt,
+  type QuizPromptAnswer,
+} from "./local-quiz.js";
 import type { QuizDocument } from "./quiz.js";
 import type { SkillStatus, SkillStatusState } from "./skill-installation.js";
 
@@ -195,6 +201,358 @@ describe("Feature: CLI invocation", () => {
     expect(output).toEqual([HELP_TEXT]);
   });
 
+  it("Scenario: a user asks for local quiz help", async () => {
+    // Given
+    const output: string[] = [];
+
+    // When
+    const exitCode = await run(["quiz", "--help"], (message) =>
+      output.push(message),
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(output).toEqual([HELP_TEXT]);
+    expect(HELP_TEXT).toContain(
+      "diffler quiz <quiz.json> [--context <context.json>]",
+    );
+  });
+
+  it("Scenario: a user completes a local quiz without cloud services", async () => {
+    // Given
+    const answerKeySecret = "seeded-answer-key-secret";
+    const responseSecret = "seeded-response-secret";
+    const repository = localQuizRepository(answerKeySecret);
+    const output: string[] = [];
+    const errors: string[] = [];
+    const auth = new StubAuthService();
+    const publisher = new StubQuizPublisher();
+    let factoryCalls = 0;
+    const prompt = stubQuizPrompt([
+      { kind: "answer", values: [responseSecret] },
+    ]);
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      (message) => output.push(message),
+      (message) => errors.push(message),
+      repository,
+      auth,
+      publisher,
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return prompt;
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(factoryCalls).toBe(1);
+    expect(prompt.close).toHaveBeenCalledOnce();
+    expect(output).toEqual([
+      "Quiz: Local quiz",
+      "Incorrect. 0/2 points.",
+      "Review the changed behavior.",
+      "Score: 0/2 points (0/1 correct).",
+    ]);
+    expect(errors).toEqual([]);
+    expect(auth.invocations).toBe(0);
+    expect(publisher.document).toBeNull();
+    expect([...output, ...errors].join("\n")).not.toContain(answerKeySecret);
+    expect([...output, ...errors].join("\n")).not.toContain(responseSecret);
+  });
+
+  it("Scenario: a user runs a local quiz against its current context", async () => {
+    // Given
+    const repository = contextBoundQuizRepository();
+    const output: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json", "--context", "context.json"],
+      (message) => output.push(message),
+      console.error,
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([{ kind: "answer", values: ["2"] }]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(0);
+    expect(factoryCalls).toBe(1);
+    expect(output).toContain("Score: 1/1 points (1/1 correct).");
+  });
+
+  it("Scenario: a malformed local quiz fails before creating a prompt", async () => {
+    // Given
+    const repository = localQuizRepository("answer-key-secret");
+    writeFileSync(join(repository, "quiz.json"), "{");
+    const errors: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual(["Quiz document is not valid JSON: quiz.json"]);
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("Scenario: an invalid quiz cannot inject controls or field names into errors", async () => {
+    // Given
+    const repository = localQuizRepository("answer-key-secret");
+    const document = JSON.parse(
+      readFileSync(join(repository, "quiz.json"), "utf8"),
+    ) as Record<string, unknown>;
+    document["sensitive-field\u001b[2J"] = true;
+    writeFileSync(join(repository, "quiz.json"), JSON.stringify(document));
+    const errors: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Quiz document is invalid; run diffler validate before starting a local quiz",
+    ]);
+    expect(errors.join("")).not.toContain("sensitive-field");
+    expect(errors.join("")).not.toContain("\u001b");
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("Scenario: unsafe option labels fail before creating a prompt", async () => {
+    // Given
+    const repository = localQuizRepository("answer-key-secret");
+    const document = JSON.parse(
+      readFileSync(join(repository, "quiz.json"), "utf8"),
+    ) as Record<string, unknown>;
+    document.questions = [
+      {
+        type: "multiple_choice",
+        id: "unsafe-options",
+        prompt: "Choose safely",
+        required: true,
+        points: 1,
+        sources: [{ path: "source.ts", startLine: 1, endLine: 1 }],
+        options: ["Alpha", "\u200bAlpha"],
+        correctAnswers: ["Alpha"],
+        feedback: { whenRight: "Right", whenWrong: "Wrong" },
+      },
+    ];
+    writeFileSync(join(repository, "quiz.json"), JSON.stringify(document));
+    const errors: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual(["Quiz cannot be displayed safely."]);
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("Scenario: stale context fails before creating a local quiz prompt", async () => {
+    // Given
+    const repository = contextBoundQuizRepository();
+    writeFileSync(join(repository, "source.ts"), "export const value = 3;\n");
+    git(repository, "add", "source.ts");
+    git(repository, "commit", "-m", "later change");
+    const errors: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json", "--context", "context.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Diff context is stale; collect context again before using this quiz",
+    ]);
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("Scenario: a user cancels a local quiz", async () => {
+    // Given
+    const repository = localQuizRepository("answer-key-secret");
+    const errors: string[] = [];
+    const prompt: QuizPrompt = {
+      ask: async () => {
+        throw new QuizCancelledError();
+      },
+      close: vi.fn(),
+    };
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      { createQuizPrompt: () => prompt },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual(["Quiz cancelled; no responses were saved."]);
+    expect(prompt.close).toHaveBeenCalledOnce();
+  });
+
+  it("Scenario: a noninteractive local quiz fails promptly", async () => {
+    // Given
+    const repository = localQuizRepository("answer-key-secret");
+    const errors: string[] = [];
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      console.log,
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          throw new LocalQuizError(
+            "Interactive quiz requires a TTY on stdin and stdout",
+          );
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Interactive quiz requires a TTY on stdin and stdout",
+    ]);
+  });
+
+  it("Scenario: malformed local quiz arguments show usage", async () => {
+    // Given
+    const errors: string[] = [];
+    let factoryCalls = 0;
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json", "--unknown"],
+      console.log,
+      (message) => errors.push(message),
+      process.cwd(),
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      {
+        createQuizPrompt: () => {
+          factoryCalls += 1;
+          return stubQuizPrompt([]);
+        },
+      },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual([
+      "Usage: diffler quiz <quiz.json> [--context <context.json>]",
+    ]);
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("Scenario: a local quiz prompt failure does not expose its response", async () => {
+    // Given
+    const responseSecret = "seeded-response-secret";
+    const repository = localQuizRepository("seeded-answer-key-secret");
+    const output: string[] = [];
+    const errors: string[] = [];
+    const prompt: QuizPrompt = {
+      ask: async () => {
+        throw new Error(responseSecret);
+      },
+      close: vi.fn(),
+    };
+
+    // When
+    const exitCode = await run(
+      ["quiz", "quiz.json"],
+      (message) => output.push(message),
+      (message) => errors.push(message),
+      repository,
+      new StubAuthService(),
+      new StubQuizPublisher(),
+      { createQuizPrompt: () => prompt },
+    );
+
+    // Then
+    expect(exitCode).toBe(1);
+    expect(errors).toEqual(["Unable to conduct local quiz"]);
+    expect([...output, ...errors].join("\n")).not.toContain(responseSecret);
+  });
+
   it("Scenario: a user validates a quiz without publishing it", async () => {
     // Given
     const output: string[] = [];
@@ -238,7 +596,7 @@ describe("Feature: CLI invocation", () => {
     // Then
     expect(exitCode).toBe(1);
     expect(errors).toEqual([
-      "Diff context is stale; collect context again before validating or publishing",
+      "Diff context is stale; collect context again before using this quiz",
     ]);
     expect(publisher.document).toBeNull();
   });
@@ -444,18 +802,22 @@ class StubAuthService implements AuthService {
   credentialsPath: string | undefined;
   authenticated = false;
   loginCalled = false;
+  invocations = 0;
 
   async login(credentialsPath?: string): Promise<void> {
+    this.invocations += 1;
     this.credentialsPath = credentialsPath;
     this.authenticated = true;
     this.loginCalled = true;
   }
 
   async status(): Promise<boolean> {
+    this.invocations += 1;
     return this.authenticated;
   }
 
   async logout(): Promise<boolean> {
+    this.invocations += 1;
     const removed = this.authenticated;
     this.authenticated = false;
     return removed;
@@ -513,6 +875,50 @@ function contextBoundQuizRepository(): string {
     }),
   );
   return repository;
+}
+
+function localQuizRepository(answerKey: string): string {
+  const repository = mkdtempSync(join(tmpdir(), "diffler-cli-quiz-"));
+  writeFileSync(
+    join(repository, "quiz.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      repository: { name: "example/project" },
+      baseRef: "main",
+      headSha: "0123456789abcdef0123456789abcdef01234567",
+      diffHash:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      title: "Local quiz",
+      questions: [
+        {
+          type: "short_answer",
+          id: "local-answer",
+          prompt: "What changed?",
+          required: true,
+          points: 2,
+          sources: [{ path: "source.ts", startLine: 1, endLine: 1 }],
+          correctAnswers: [answerKey],
+          feedback: { general: "Review the changed behavior." },
+        },
+      ],
+    }),
+  );
+  return repository;
+}
+
+function stubQuizPrompt(answers: readonly QuizPromptAnswer[]): QuizPrompt {
+  let index = 0;
+  return {
+    ask: async () => {
+      const answer = answers[index];
+      index += 1;
+      if (answer === undefined) {
+        throw new Error("Missing stub quiz answer");
+      }
+      return answer;
+    },
+    close: vi.fn(),
+  };
 }
 
 function git(cwd: string, ...args: string[]): void {

@@ -19,15 +19,24 @@ import { collectDiffContext, DiffContextError } from "./diff-context.js";
 import { createDoctorService, type DoctorService } from "./doctor.js";
 import { publishWithStoredAuth, type QuizPublisher } from "./google-forms.js";
 import {
+  conductLocalQuiz,
+  LocalQuizError,
+  QuizCancelledError,
+  type QuizPrompt,
+  sanitizeQuizDisplayText,
+  validateLocalQuizDisplay,
+} from "./local-quiz.js";
+import { parseQuizDocument, QuizValidationError } from "./quiz.js";
+import {
   parseQuizContext,
   validateQuizAgainstContext,
 } from "./quiz-context.js";
-import { parseQuizDocument } from "./quiz.js";
 import {
   type SkillAgent,
   SkillInstallationService,
   type SkillScope,
 } from "./skill-installation.js";
+import { createTerminalQuizPrompt } from "./terminal-quiz-prompt.js";
 
 export const HELP_TEXT = `Diffler
 
@@ -43,6 +52,7 @@ Usage:
   diffler skill uninstall <claude|opencode> --scope <project|user> [--force]
   diffler doctor
   diffler validate <quiz.json> [--context <context.json>]
+  diffler quiz <quiz.json> [--context <context.json>]
   diffler publish <quiz.json> --context <context.json>
   diffler context [--base <ref>] [--output <path>]
                   [--max-bytes <bytes>] [--chunk-bytes <bytes>]
@@ -63,6 +73,7 @@ interface SkillService {
 
 export interface CliServices {
   createSkillService?: (agent: SkillAgent, scope: SkillScope) => SkillService;
+  createQuizPrompt?: () => QuizPrompt;
   doctor?: DoctorService;
 }
 
@@ -88,6 +99,9 @@ export async function run(
     (args[0] === "validate" &&
       args.length === 2 &&
       (args[1] === "--help" || args[1] === "-h")) ||
+    (args[0] === "quiz" &&
+      args.length === 2 &&
+      (args[1] === "--help" || args[1] === "-h")) ||
     (args[0] === "skill" &&
       args.length === 2 &&
       (args[1] === "--help" || args[1] === "-h")) ||
@@ -109,6 +123,16 @@ export async function run(
 
   if (args[0] === "validate") {
     return runValidate(args.slice(1), write, writeError, cwd);
+  }
+
+  if (args[0] === "quiz") {
+    return runQuiz(
+      args.slice(1),
+      services.createQuizPrompt ?? createTerminalQuizPrompt,
+      write,
+      writeError,
+      cwd,
+    );
   }
 
   if (args[0] === "skill") {
@@ -348,6 +372,48 @@ function runValidate(
   }
 }
 
+async function runQuiz(
+  args: readonly string[],
+  createPrompt: () => QuizPrompt,
+  write: WriteOutput,
+  writeError: WriteOutput,
+  cwd: string,
+): Promise<number> {
+  let document: ReturnType<typeof parseQuizDocument>;
+  try {
+    const options = parseQuizFileArgs(args, "quiz");
+    document = readQuizDocument(cwd, options.inputPath, options.contextPath);
+    validateLocalQuizDisplay(document);
+  } catch (error) {
+    writeError(
+      error instanceof QuizValidationError
+        ? "Quiz document is invalid; run diffler validate before starting a local quiz"
+        : sanitizeQuizDisplayText(
+            error instanceof Error ? error.message : "Unknown error",
+          ),
+    );
+    return 1;
+  }
+
+  try {
+    await conductLocalQuiz(document, createPrompt(), write);
+    return 0;
+  } catch (error) {
+    if (error instanceof QuizCancelledError) {
+      writeError("Quiz cancelled; no responses were saved.");
+    } else if (error instanceof LocalQuizError) {
+      writeError(
+        error.message === "Interactive quiz requires a TTY on stdin and stdout"
+          ? error.message
+          : "Invalid local quiz response.",
+      );
+    } else {
+      writeError("Unable to conduct local quiz");
+    }
+    return 1;
+  }
+}
+
 interface QuizFileOptions {
   inputPath: string;
   contextPath?: string;
@@ -355,12 +421,12 @@ interface QuizFileOptions {
 
 function parseQuizFileArgs(
   args: readonly string[],
-  command: "publish" | "validate",
+  command: "publish" | "quiz" | "validate",
 ): QuizFileOptions {
   const usage =
     command === "publish"
       ? "Usage: diffler publish <quiz.json> --context <context.json>"
-      : "Usage: diffler validate <quiz.json> [--context <context.json>]";
+      : `Usage: diffler ${command} <quiz.json> [--context <context.json>]`;
   const inputPath = args[0];
   if (inputPath === undefined) {
     throw new Error(usage);

@@ -1,8 +1,12 @@
 # Quiz Document
 
 The quiz document is the stable boundary between agent-generated questions and
-Google Forms publication. Diffler validates this untrusted JSON before making
-any Forms API request.
+local terminal or Google Forms delivery. Diffler validates this untrusted JSON
+before starting a local attempt or making any Forms API request.
+
+The document necessarily contains the grading key. Treat `.diffler/quiz.json` as
+a sensitive local artifact: do not commit it or reveal or summarize its contents
+in chat, prompts, command arguments, or logs.
 
 The machine-readable structural contract is
 [`schemas/quiz-document.schema.json`](../schemas/quiz-document.schema.json). A
@@ -12,7 +16,7 @@ at [`examples/quiz.json`](../examples/quiz.json).
 Some cross-field rules cannot be expressed by JSON Schema, including answer
 membership, ordered source ranges, and question-ID uniqueness. The JSON Schema
 lists these under `x-diffler-runtime-validations`; `parseQuizDocument` is the
-authoritative validation boundary before publication.
+authoritative validation boundary before either delivery mode.
 
 ## Top-Level Fields
 
@@ -23,14 +27,13 @@ authoritative validation boundary before publication.
 | `baseRef` | Records the branch or ref used as the comparison base. |
 | `headSha` | Binds the quiz to a full Git object ID. |
 | `diffHash` | Binds the quiz to the SHA-256 hash of the collected diff. |
-| `title` | Supplies the Google Form title. |
+| `title` | Supplies the local quiz or Google Form title. |
 | `questions` | Contains one or more graded questions. |
-| `closingRiddle` | Optionally supplies a whimsical ungraded final Form item. |
+| `closingRiddle` | Optionally supplies a whimsical ungraded ending. |
 
 ## Question Types
 
-Diffler supports the Google Forms question types that can be automatically
-graded:
+Diffler supports four question types in both delivery modes:
 
 - `multiple_choice` requires at least two unique options and one or more accepted answers.
 - `checkbox` requires at least two unique options and one or more answers.
@@ -43,9 +46,17 @@ source reference. Choice answers must exactly match an option. For single-valued
 questions, any listed answer is accepted; checkbox responses must match the full
 answer set.
 
+Local scoring mirrors Google Forms: single-choice, dropdown, and short-answer
+responses match exact accepted values; checkbox responses must match the exact
+accepted set. Diffler performs no case, whitespace, or other normalization and
+awards either all configured points or zero for each question.
+
 Choice questions provide `whenRight` and `whenWrong` feedback. Google Forms only
 supports general feedback for automatically graded short answers, so
 `short_answer` uses a single `general` feedback message.
+
+Local attempts and responses remain in memory for the life of the interactive
+command. Diffler does not create an attempt or response file.
 
 ## Regenerating The Schema
 
